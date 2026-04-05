@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEENAI 請求書確認ツール v2.5</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--border:#2e3350;
+  --accent:#4f8ef7;--ok:#22c55e;--warn:#f59e0b;--error:#ef4444;
+  --info:#38bdf8;--text:#e2e8f0;--text2:#8892a4;--text3:#4a5568;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px;}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;}
+.logo{font-size:17px;font-weight:700;letter-spacing:1px;}.logo span{color:var(--accent);}
+.version{color:var(--text2);font-size:11px;background:var(--surface2);padding:2px 8px;border-radius:4px;}
+.api-mini{margin-left:auto;display:flex;align-items:center;gap:8px;}
+.api-mini input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;width:220px;font-size:12px;}
+.api-mini input:focus{outline:none;border-color:var(--accent);}
+.api-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);}.api-dot.ok{background:var(--ok);}
+.tabs{display:flex;gap:2px;padding:16px 20px 0;background:var(--bg);}
+.tab{padding:9px 20px;border-radius:8px 8px 0 0;cursor:pointer;color:var(--text2);font-weight:600;font-size:13px;border:1px solid transparent;border-bottom:none;transition:all .15s;}
+.tab.active{background:var(--surface);color:var(--text);border-color:var(--border);}
+.tab:hover:not(.active){color:var(--text);}
+.tab-body{display:none;}.tab-body.active{display:block;}
+.tab-content{background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 8px 8px 8px;padding:20px;min-height:400px;}
+.folder-banner{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+.folder-banner.ok{border-color:var(--ok);}
+.folder-path{font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.folder-path b{color:var(--text);}
+.month-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+.month-btn{padding:6px 16px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:12px;font-weight:600;transition:all .15s;}
+.month-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.month-btn:hover:not(.active){border-color:var(--accent);color:var(--accent);}
+.dash-table-wrap{overflow-x:auto;}
+.dash-table{width:100%;border-collapse:collapse;font-size:12px;}
+.dash-table th{background:var(--surface2);color:var(--text2);padding:8px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;}
+.dash-table td{padding:7px 10px;border-bottom:1px solid rgba(46,51,80,.4);vertical-align:middle;}
+.dash-table tr:hover td{background:rgba(79,142,247,.04);}
+.dash-table .num{text-align:right;font-variant-numeric:tabular-nums;}
+.sbadge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;}
+.sbadge-ok{background:rgba(34,197,94,.15);color:var(--ok);}
+.sbadge-error{background:rgba(239,68,68,.15);color:var(--error);}
+.sbadge-none{background:var(--surface2);color:var(--text2);}
+.sbadge-warn{background:rgba(245,158,11,.15);color:var(--warn);}
+.sbadge-next{background:rgba(245,158,11,.2);color:#f59e0b;border:1px solid rgba(245,158,11,.4);}
+.match-banner.next{background:rgba(245,158,11,.12);border:1px solid var(--warn);color:var(--warn);}
+/* パターンバッジ */
+.ptag{display:inline-flex;align-items:center;padding:1px 7px;border-radius:4px;font-size:10px;font-weight:700;font-family:monospace;}
+.pt-a{background:rgba(52,211,153,.2);color:#34d399;}
+.pt-b{background:rgba(96,165,250,.2);color:#60a5fa;}
+.pt-c{background:rgba(167,139,250,.2);color:#a78bfa;}
+.pt-d,.pt-da{background:rgba(245,158,11,.2);color:#f59e0b;}
+.pt-e{background:rgba(56,189,248,.2);color:#38bdf8;}
+.pt-f{background:rgba(232,121,249,.2);color:#e879f9;}
+.pt-g{background:rgba(244,114,182,.2);color:#f472b6;}
+.pt-y{background:rgba(148,163,184,.2);color:#94a3b8;}
+.steps{display:flex;flex-direction:column;gap:14px;}
+.step{background:var(--surface2);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color .2s;}
+.step.active{border-color:var(--accent);}.step.done{border-color:var(--ok);opacity:.9;}
+.step-hdr{display:flex;align-items:center;gap:10px;padding:12px 18px;cursor:pointer;user-select:none;}
+.step-num{width:26px;height:26px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;}
+.step.active .step-num{background:var(--accent);}.step.done .step-num{background:var(--ok);}
+.step-title{font-weight:600;font-size:13px;}
+.step-sub{color:var(--text2);font-size:11px;margin-left:auto;}
+.step-body{padding:16px;display:none;}
+.step.active .step-body,.step.open .step-body{display:block;}
+.drop-zone{border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;position:relative;}
+.drop-zone:hover,.drop-zone.dragover{border-color:var(--accent);background:rgba(79,142,247,.05);}
+.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.drop-icon{font-size:28px;margin-bottom:6px;}
+.drop-text{color:var(--text2);font-size:12px;}.drop-text b{color:var(--accent);}
+.file-loaded{border-color:var(--ok);background:rgba(34,197,94,.05);}
+.btn{padding:8px 18px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px;}
+.btn-primary{background:var(--accent);color:#fff;}.btn-primary:hover{background:#3d7be0;}
+.btn-primary:disabled{background:var(--border);color:var(--text3);cursor:not-allowed;}
+.btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border);}.btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+.btn-precision{background:var(--surface2);color:var(--accent);border:1px solid var(--accent);}.btn-precision:hover{background:rgba(79,142,247,.15);}
+.btn-sm{padding:5px 12px;font-size:11px;}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start;}
+.col{flex:1;min-width:160px;}
+label{display:block;color:var(--text2);font-size:11px;margin-bottom:4px;text-transform:uppercase;}
+input[type=text],input[type=password],select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:7px 10px;border-radius:7px;font-size:12px;}
+input:focus,select:focus{outline:none;border-color:var(--accent);}
+.info-text{color:var(--text2);font-size:12px;line-height:1.6;}
+.mt8{margin-top:8px;}.mt16{margin-top:16px;}
+.progress-bar{height:3px;background:var(--border);border-radius:2px;margin:10px 0;}
+.progress-bar .fill{height:100%;border-radius:2px;background:var(--accent);transition:width .3s;}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(79,142,247,.3);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.summary-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+.sc{flex:1;min-width:120px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+.sc .sl{color:var(--text2);font-size:11px;margin-bottom:3px;}.sc .sv{font-size:16px;font-weight:700;}
+.match-banner{border-radius:10px;padding:16px 20px;display:flex;align-items:center;gap:14px;font-size:14px;font-weight:600;}
+.match-banner.ok{background:rgba(34,197,94,.12);border:1px solid var(--ok);color:var(--ok);}
+.match-banner.error{background:rgba(239,68,68,.12);border:1px solid var(--error);color:var(--error);}
+.match-banner .detail{color:var(--text2);font-size:12px;font-weight:400;margin-top:2px;}
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{background:var(--surface2);color:var(--text2);padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:7px 10px;border-bottom:1px solid rgba(46,51,80,.5);vertical-align:middle;}
+tr:hover td{background:rgba(79,142,247,.04);}
+.tag{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;}
+.tag-ok{background:rgba(34,197,94,.15);color:var(--ok);}
+.tag-error{background:rgba(239,68,68,.15);color:var(--error);}
+.tag-warn{background:rgba(245,158,11,.15);color:var(--warn);}
+.diff-text{color:var(--error);font-size:11px;}
+.mono{font-family:'Consolas',monospace;}
+.manual-input{background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:12px 14px;margin-top:10px;}
+.manual-input label{color:var(--accent);}
+.hint{color:var(--text2);font-size:11px;margin-top:4px;}
+.empty-state{text-align:center;padding:40px;color:var(--text2);}
+.empty-state .ei{font-size:40px;margin-bottom:10px;}
+.notes-badge{font-size:10px;color:var(--text3);margin-top:2px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">LEAN<span>AI</span></div>
+  <div class="version">請求書確認ツール v2.5 (2026-04-05)</div>
+  <div class="api-mini">
+    <span style="color:var(--text2);font-size:11px;">API KEY</span>
+    <div class="api-dot" id="apiDot"></div>
+    <input type="password" id="apiKeyInput" placeholder="sk-ant-..." maxlength="200">
+    <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="saveApiKey()">保存</button>
+  </div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" id="tab-dash" onclick="switchTab('dash')">🏠 ダッシュボード</div>
+  <div class="tab" id="tab-match" onclick="switchTab('match')">📋 照合</div>
+</div>
+
+<!-- ════ DASHBOARD ════ -->
+<div class="tab-body active" id="body-dash">
+<div class="tab-content">
+
+  <div class="folder-banner" id="folderBanner">
+    <span style="font-size:20px;">📁</span>
+    <div class="folder-path" id="folderPath">請求書フォルダが選択されていません</div>
+    <button class="btn btn-ghost btn-sm" onclick="selectFolder()">フォルダ選択</button>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;">
+    <span style="font-size:18px;">📊</span>
+    <div style="flex:1;">
+      <div style="font-size:12px;font-weight:600;margin-bottom:2px;">COMPASS データ</div>
+      <div class="info-text" id="dashCompassInfo" style="font-size:11px;">COMPASS_仕入_DATA.xlsx を選択してください</div>
+    </div>
+    <label class="btn btn-ghost btn-sm" style="cursor:pointer;position:relative;">
+      ファイル選択
+      <input type="file" accept=".xlsx,.xls" style="position:absolute;inset:0;opacity:0;cursor:pointer;" onchange="loadCompass(this.files[0])">
+    </label>
+  </div>
+
+  <div class="month-bar" id="monthBar">
+    <span class="info-text">フォルダを選択すると月一覧が表示されます</span>
+  </div>
+
+  <div id="dashContent">
+    <div class="empty-state"><div class="ei">📂</div><div>請求書フォルダを選択して開始してください</div></div>
+  </div>
+
+</div>
+</div>
+
+<!-- ════ MATCH TAB ════ -->
+<div class="tab-body" id="body-match">
+<div class="tab-content">
+<div class="steps">
+
+  <div class="step done" id="step1">
+    <div class="step-hdr" onclick="toggleStep('step1')">
+      <div class="step-num">1</div>
+      <div class="step-title">COMPASS データ</div>
+      <div class="step-sub" id="step1-sub">ダッシュボードで読込済みなら自動反映</div>
+    </div>
+    <div class="step-body">
+      <div class="drop-zone" id="compassDrop">
+        <input type="file" accept=".xlsx,.xls" onchange="loadCompass(this.files[0])">
+        <div class="drop-icon">📊</div>
+        <div class="drop-text"><b>COMPASS_仕入_DATA.xlsx</b> をドロップ</div>
+      </div>
+      <div id="compassInfo" style="display:none;" class="info-text mt8"></div>
+    </div>
+  </div>
+
+  <!-- 照合対象業者バナー -->
+  <div id="matchVendorBanner" style="display:none;background:var(--surface2);border:1px solid var(--accent);border-radius:10px;padding:12px 18px;display:none;align-items:center;gap:12px;">
+    <span style="font-size:18px;">🏢</span>
+    <div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:2px;">照合対象業者</div>
+      <div id="matchVendorName" style="font-size:15px;font-weight:700;"></div>
+    </div>
+    <div style="margin-left:auto;text-align:right;">
+      <div style="font-size:11px;color:var(--text2);" id="matchVendorMonth"></div>
+      <div style="font-size:11px;" id="matchVendorPattern"></div>
+    </div>
+  </div>
+
+  <div class="step" id="step2">
+    <div class="step-hdr" onclick="toggleStep('step2')">
+      <div class="step-num">2</div>
+      <div class="step-title">請求書 読込</div>
+      <div class="step-sub" id="step2-sub">PDF をAI解析</div>
+    </div>
+    <div class="step-body">
+      <div class="drop-zone" id="invoiceDrop">
+        <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="loadInvoicePDF(this.files[0])">
+        <div class="drop-icon">📄</div>
+        <div class="drop-text"><b>請求書PDF</b> をドロップ<br><span style="font-size:11px;">ファイル名から業者を自動判定 (例: 2602兼子.pdf)</span></div>
+      </div>
+      <div id="ocrProgress" style="display:none;" class="mt8">
+        <div class="progress-bar"><div class="fill" id="ocrFill"></div></div>
+        <div class="info-text" id="ocrStatus"></div>
+      </div>
+      <div id="manualPackerBox" style="display:none;" class="manual-input mt16">
+        <label>⚠️ 業者を手動で指定</label>
+        <div class="hint" id="ocrCompanyHint"></div>
+        <div class="row mt8">
+          <div class="col">
+            <select id="packerSel" onchange="onManualPackerChange()">
+              <option value="">-- 業者を選択 --</option>
+            </select>
+          </div>
+          <div class="col" style="max-width:150px;">
+            <label>対象月</label>
+            <input type="text" id="targetMonth" placeholder="202602" maxlength="6" oninput="onManualMonthChange()">
+          </div>
+        </div>
+      </div>
+      <div id="invoiceResult" class="mt16" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="step" id="step3">
+    <div class="step-hdr" onclick="toggleStep('step3')">
+      <div class="step-num">3</div>
+      <div class="step-title">照合結果</div>
+      <div class="step-sub" id="step3-sub">STEP 1〜2 を完了してください</div>
+    </div>
+    <div class="step-body">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="matchBtn" onclick="runMatch()" disabled>▶ 照合実行</button>
+        <button class="btn btn-ghost" id="saveBtn" onclick="saveResult()" disabled style="display:none;">💾 結果を保存</button>
+        <button class="btn btn-ghost" onclick="resetMatch()">↺ リセット</button>
+      </div>
+      <div id="matchResult"></div>
+    </div>
+  </div>
+
+</div>
+</div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// VENDOR_MASTER (47社 A~Y型)
+// ══════════════════════════════════════════
+const VENDOR_MASTER = {
+  // ── A型: コンテナNo.が請求書に記載 ──
+  'KANEKO':       {ja:'兼子',         type:'A', alias:['兼子','KANEKO'],        notes:'単価多種. 仮スタンプ注意. カゴ引等あり'},
+  'KUMAGAYA':     {ja:'熊谷紙業',     type:'A', alias:['熊谷','KUMAGAYA'],      notes:'BKG No.も記載'},
+  'KYOEKI SHOKAI':{ja:'共益商会',     type:'A', alias:['共益','共益商会'],      notes:'古着'},
+  'HANWA':        {ja:'阪和興業',     type:'A', alias:['阪和','HANWA'],         notes:'品名が月により変動. 翌月13日払い'},
+  'SHINNIHON':    {ja:'新日本産業',   type:'A', alias:['新日本','SHINNIHON'],   notes:'月またぎ. 請求額マイナスの可能性あり'},
+  // ── B型: 伝票No.+日付+品名+kg+単価 ──
+  'TOKYO':        {ja:'東京紙パルプ(TKK)',type:'B', alias:['TOKYO','TKK','東京紙パルプ','東京'],notes:'分冊数が月により変動(1月5冊→2月7冊). TKK(N)別途あり. 単価修正伝票あり'},
+  'SANKO':        {ja:'三弘紙業',     type:'B', alias:['三弘','SANKO'],         notes:'備考欄にコンテナNo.あり. 1月差異¥64,600'},
+  // ── C型: CO/LN番号ベース ──
+  'DAIWA':        {ja:'大和紙料',     type:'C', alias:['大和','DAIWA'],         notes:'CO番号(LR-XXXX-DW). 複数CO番号が月をまたがり継続'},
+  'OOMOTO':       {ja:'大本紙料',     type:'C', alias:['大本','OOMOTO'],        notes:'BKG No.(BO/NO.). 月またぎ常態→STEP1差異→明細照合必須', ocr_mode:'summary'},
+  'TOUCHI':       {ja:'トーチ',       type:'C', alias:['トーチ','TOUCHI'],      notes:'LR-XXXX-TC. PAPER CORE(紙管)'},
+  'TERAMATSU':    {ja:'寺松商店',     type:'C', alias:['寺松','TERAMATSU'],     notes:'摘要欄=LR-XXXX-TE. 5本全体を1行合算'},
+  'DAICHU':       {ja:'大中物産',     type:'C', alias:['大中','DAICHU'],        notes:'単価=¥/ton. 品目×契約月別集計. 仙台営業所'},
+  'MATEC':        {ja:'マテック',     type:'C', alias:['マテック','MATEC'],     notes:'LR-XXXX-MT. PDF未確認'},
+  // ── D型: 品目別月合計のみ ──
+  'FUJI':         {ja:'ふじ産業',     type:'D', alias:['ふじ','ふじ産業','FUJI'],notes:'OCC/OMG/ONP/SOP. 同品目で単価2種あり'},
+  'KYOUWA':       {ja:'協和',         type:'D', alias:['協和','KYOUWA'],        notes:'単価=¥/ton(¥17,500=¥17.5/kg). 沖縄'},
+  // ── DA型: 表紙=D型+明細書=A型 ──
+  'SUNWASPA':     {ja:'サンウエスパ', type:'DA',alias:['サンウエスパ','SUNWASPA'],notes:'2枚構成(請求書+明細書). 車番あり'},
+  // ── E型: 日付+品名+kg+単価 (コンテナNo.なし) ──
+  'TPC':          {ja:'ディービーシー',type:'E', alias:['TPC','ディービーシー'], notes:'1件のみ. 前回繰越あり'},
+  'UBUKATA':      {ja:'ウブカタ資源', type:'E', alias:['ウブカタ','UBUKATA'],  notes:'品名別合計表あり. 単価=¥/LB'},
+  'ECOSTYLE':     {ja:'エコスタイル', type:'E', alias:['エコスタイル','ECOSTYLE'],notes:'取引先コード0110098'},
+  'KYUSHU':       {ja:'エコポート九州',type:'E', alias:['エコポート','KYUSHU'],  notes:'売上No.あり'},
+  'NAGAI':        {ja:'ナガイHD',     type:'E', alias:['ナガイ','NAGAI'],       notes:'BtoBプラットフォーム経由'},
+  'KYOKUSHIN':    {ja:'旭進紙業',     type:'E', alias:['旭進','KYOKUSHIN'],     notes:'半月単位請求(10日毎). 仮청구서. 2月Work分¥4,831,725未受領'},
+  'SAKAUE':       {ja:'坂上興産',     type:'E', alias:['坂上','SAKAUE'],        notes:'5コンテナを1行合算. 入金が明細内'},
+  'SHINWA':       {ja:'信和',         type:'E', alias:['信和','SHINWA'],        notes:'得意先元帳形式. 商社手数料あり'},
+  'KOBE':         {ja:'神戸紙交易',   type:'E', alias:['神戸','KOBE'],          notes:'2件のみ'},
+  'SHIZAI':       {ja:'紙材開発',     type:'E', alias:['紙材','SHIZAI'],        notes:'COMPASS work_date=翌月登録あり→月またぎ注意'},
+  'HYOGO':        {ja:'兵庫パルプ',   type:'E', alias:['兵庫','HYOGO'],         notes:'BK番号=BKG No. 品目名差異:古着/ウエス'},
+  'KODUKA':       {ja:'こづか',       type:'E', alias:['こづか','KODUKA'],      notes:'2ヶ月分請求書. 品目名差異:古布(請求書)/古着(COMPASS)'},
+  'KOKUSAI':      {ja:'国際紙パルプ', type:'E', alias:['国際紙','KOKUSAI'],     notes:'4ページ. 複数注文NO=1BKG. 単価修正行あり'},
+  'FUJISHIGYO':   {ja:'富士紙業',     type:'E', alias:['富士紙業','FUJISHIGYO'],notes:'1件のみ. L/B段ボール'},
+  // ── F型: 伝票No.+日付+品名+数量+単価+車番 ──
+  'KAWASUZU':     {ja:'川鈴',         type:'F', alias:['川鈴','KAWASUZU'],      notes:'単価変動多. work_date=NaN多'},
+  'TSURUMI':      {ja:'ツルミ紙業',   type:'F', alias:['ツルミ','TSURUMI'],     notes:'振込入金が明細内'},
+  'MARUYASU':     {ja:'丸康商店',     type:'F', alias:['丸康','MARUYASU'],      notes:'入金(振込)・入金(その他)が明細内'},
+  'ISHIZAKA':     {ja:'石坂グループ', type:'F', alias:['石坂','ISHIZAKA'],      notes:'FAX経由. コード001757. 熊本'},
+  'ISHIKAWA':     {ja:'石川マテリアル',type:'F', alias:['石川','ISHIKAWA'],      notes:'品種別合計あり'},
+  'FUMIMOTO':     {ja:'文本商事',     type:'F', alias:['文本','FUMIMOTO'],      notes:'摘要=納品場所. 全件同日集中'},
+  'KINOSHITA':    {ja:'木下紙業',     type:'F', alias:['木下','KINOSHITA'],     notes:'FAX品質不良'},
+  'KANEKO SHOJI': {ja:'金子商事',     type:'F', alias:['金子商事','KANEKO SHOJI'],notes:'KANEKOと別コード. 2ヶ月分請求書. シュレッダー¥25.2/kg'},
+  'ARAI':         {ja:'新井グループ', type:'F', alias:['新井','ARAI'],          notes:'単価2種. 摘要=営業所名'},
+  'MEIWA':        {ja:'明和製紙原料', type:'F', alias:['明和','MEIWA'],         notes:'新聞LB ¥26.30/kg. 岡山'},
+  // ── G型: BKG単位・複数コンテナ集計 ──
+  'SK TRADING':   {ja:'SKトレーディング',type:'G',alias:['SK TRADING','SK','SKトレーディング'],notes:'単価が月により変動(2~3種). BKG番号なし'},
+  'OKINAWA':      {ja:'沖縄紙業',     type:'G', alias:['沖縄','OKINAWA'],       notes:'丸め誤差あり. 月またぎ発生'},
+  'YAMAHATSU':    {ja:'山發日本',     type:'G', alias:['山發','YAMAHATSU'],     notes:'2枚構成(メイン+洗浄費). 単価=¥/ton'},
+  'KUNIYOSHI':    {ja:'國吉商店',     type:'G', alias:['國吉','KUNIYOSHI'],     notes:'品名に「コンテナ〇本分」. BKGまたがり'},
+  'MIYAZAKI':     {ja:'宮崎',         type:'G', alias:['宮崎','MIYAZAKI'],      notes:'コンテナNo.なし. 備考=4桁識別番号'},
+  // ── Y型: 月合計のみ ──
+  'CHUBU':        {ja:'中部紙業',     type:'Y', alias:['中部','CHUBU'],         notes:'月またぎ常態'},
+  'TANI':         {ja:'谷商店',       type:'Y', alias:['谷商店','TANI'],        notes:'品目「切茶」特殊'},
+};
+
+const PATTERN_LABEL = {
+  A:'コンテナ単位', B:'伝票単位', C:'CO/LN番号',
+  D:'品目月合計', DA:'D+A複合', E:'日付+kg+単価',
+  F:'伝票+車番', G:'BKG単位', Y:'月合計のみ'
+};
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+const S = {
+  apiKey:'',
+  rootHandle:null,
+  selectedMonth:'',        // YYMM (フォルダ名から抽出)
+  compassData:[],          // sheetToRows済み仕入データ
+  compassMap:{},           // {packerCode: '10004 兼子'} 帳簿比較
+  selectedPacker:'',
+  targetMonth:0,           // YYYYMM
+  invoiceData:null,
+  lastMatchResult:null,
+  pdfFiles:{},
+  currentMonthHandle:null, // 選択フォルダ自体 (DEC-014)
+  currentYM4:'',
+  dashResults:{},          // DEC-023
+  _compassFiltered:[],
+  _compassNext:[],
+  _bulkStop:false,
+};
+
+const DB_NAME='leenai_invoice_v1', DB_STORE='settings';
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+window.onload = async () => {
+  const k = localStorage.getItem('leenai_apikey_v1')||'';
+  S.apiKey=k; document.getElementById('apiKeyInput').value=k; updateApiDot();
+  // 照合タブの業者セレクト初期化
+  const sel=document.getElementById('packerSel');
+  Object.entries(VENDOR_MASTER).forEach(([code,v])=>{
+    const o=document.createElement('option'); o.value=code;
+    o.textContent=`${v.ja} [${v.type}型] — ${code}`; sel.appendChild(o);
+  });
+  await tryRestoreFolder();
+};
+function saveApiKey(){
+  const k=document.getElementById('apiKeyInput').value.trim();
+  if(!k.startsWith('sk-ant-')){alert('APIキーは sk-ant- で始まります');return;}
+  S.apiKey=k; localStorage.setItem('leenai_apikey_v1',k); updateApiDot();
+}
+function updateApiDot(){document.getElementById('apiDot').className='api-dot'+(S.apiKey?' ok':'');}
+function switchTab(name){
+  ['dash','match'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('active',t===name);
+    document.getElementById('body-'+t).classList.toggle('active',t===name);
+  });
+}
+
+// ══════════════════════════════════════════
+// INDEXEDDB
+// ══════════════════════════════════════════
+async function openDB(){
+  return new Promise((res,rej)=>{
+    const req=indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded=e=>e.target.result.createObjectStore(DB_STORE);
+    req.onsuccess=e=>res(e.target.result); req.onerror=rej;
+  });
+}
+async function dbGet(key){
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(DB_STORE,'readonly');
+    tx.objectStore(DB_STORE).get(key).onsuccess=e=>res(e.target.result);
+    tx.onerror=rej;
+  });
+}
+async function dbSet(key,val){
+  const db=await openDB();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(DB_STORE,'readwrite');
+    tx.objectStore(DB_STORE).put(val,key);
+    tx.oncomplete=res; tx.onerror=rej;
+  });
+}
+
+// ══════════════════════════════════════════
+// FOLDER
+// ══════════════════════════════════════════
+async function selectFolder(){
+  try{
+    const handle=await window.showDirectoryPicker({mode:'readwrite'});
+    S.rootHandle=handle; await dbSet('rootHandle',handle); await loadFolderStructure();
+  }catch(e){if(e.name!=='AbortError')alert('フォルダ選択エラー: '+e.message);}
+}
+async function tryRestoreFolder(){
+  try{
+    const handle=await dbGet('rootHandle'); if(!handle)return;
+    const perm=await handle.queryPermission({mode:'readwrite'});
+    if(perm==='granted'){S.rootHandle=handle;await loadFolderStructure();}
+    else showReconnectButton(handle);
+  }catch{}
+}
+function showReconnectButton(handle){
+  document.getElementById('folderBanner').innerHTML=`
+    <span style="font-size:20px;">📁</span>
+    <div class="folder-path"><b>前回のフォルダ</b>に再接続が必要です</div>
+    <button class="btn btn-primary btn-sm" onclick="reconnectFolder()">再接続</button>`;
+  window._pendingHandle=handle;
+}
+window.reconnectFolder=async()=>{
+  try{await window._pendingHandle.requestPermission({mode:'readwrite'});S.rootHandle=window._pendingHandle;await loadFolderStructure();}
+  catch{alert('再接続失敗。フォルダを再選択してください。');}
+};
+// DEC-014: 選択フォルダ自体を月フォルダとして使用 (サブフォルダ不要)
+// フォルダ命名規則: {YYMM}_{任意} (例: 2601_仕入れ、2602_仕入れ)
+async function loadFolderStructure(){
+  if(!S.rootHandle)return;
+  const folderName=S.rootHandle.name;
+  const mYM=folderName.match(/^(\d{4})/);
+  const ym4=(mYM&&isValidYM(mYM[1]))?mYM[1]:null;
+
+  S.currentMonthHandle=S.rootHandle;
+  S.selectedMonth=ym4||'';
+
+  const banner=document.getElementById('folderBanner');
+  banner.className='folder-banner ok';
+  banner.innerHTML=`<span style="font-size:20px;">✅</span>
+    <div class="folder-path"><b>${folderName}</b>${ym4?' — '+formatYM4(ym4):'<span style="color:var(--warn)"> ※ フォルダ名の先頭にYYMMを付けてください</span>'}</div>
+    <button class="btn btn-ghost btn-sm" onclick="selectFolder()">変更</button>`;
+
+  // 月ボタンバー不要
+  document.getElementById('monthBar').innerHTML='';
+
+  if(ym4){await renderDashboard(ym4);}
+  else{document.getElementById('dashContent').innerHTML=`<div class="empty-state">
+    <div class="ei">⚠️</div>
+    <div>フォルダ名の先頭にYYMMを付けてください<br>
+    <span style="font-size:11px;color:var(--text2)">例: 2601_仕入れ、2602_仕入れ</span></div>
+  </div>`;}
+}
+
+function formatYM4(ym4){return `${2000+parseInt(ym4.slice(0,2))}年${parseInt(ym4.slice(2,4))}月`;}
+
+function isValidYM(s){
+  const y=parseInt(s.slice(0,2)),m=parseInt(s.slice(2,4));
+  return y>=21&&y<=99&&m>=1&&m<=12;
+}
+
+// ══════════════════════════════════════════
+// COMPASS READ (DEC-010: raw:true + 手動日付変換)
+// ══════════════════════════════════════════
+function sheetToRows(sheet){
+  const rows=XLSX.utils.sheet_to_json(sheet,{defval:null,raw:true});
+  rows.forEach(r=>{
+    // 日付フィールド正規化
+    ['work_date','pay_date','date','cr49f_cy_cut'].forEach(col=>{
+      const v=r[col];
+      if(v instanceof Date){r[col]=v;}
+      else if(typeof v==='number'&&v>0){
+        // Excelシリアル日付→JS Date
+        try{const d=XLSX.SSF.parse_date_code(v);r[col]=d?new Date(d.y,d.m-1,d.d):null;}
+        catch{r[col]=new Date(Math.round((v-25569)*86400*1000));}
+      }else if(typeof v==='string'&&v.trim()){
+        const cleaned=v.replace(/(\d{4})[\/](\d{1,2})[\/](\d{1,2}).*/,'$1-$2-$3').replace(/ .*$/,'');
+        const pd=new Date(cleaned); r[col]=isNaN(pd.getTime())?null:pd;
+      }else{r[col]=null;}
+    });
+    // 数値フィールド正規化
+    ['Amount','Amount_tax','purchase_price','Net_Weight'].forEach(col=>{r[col]=parseFloat(r[col])||0;});
+  });
+  return rows;
+}
+
+async function loadCompass(file){
+  if(!file)return;
+  try{
+    const buf=await file.arrayBuffer();
+    // DEC-010: cellDates:true はWORKBOOKレベルで指定、sheet_to_jsonはraw:true
+    const wb=XLSX.read(buf,{type:'array',cellDates:true});
+    const ws1=wb.Sheets[wb.SheetNames[0]];
+    S.compassData=sheetToRows(ws1);
+
+    // 帳簿比較シート読込
+    S.compassMap={};
+    const ws2=wb.Sheets['帳簿比較'];
+    if(ws2){
+      XLSX.utils.sheet_to_json(ws2,{header:1}).slice(1).forEach(r=>{
+        if(r[0]&&r[1]) S.compassMap[r[0].trim()]=r[1].trim();
+      });
+    }
+
+    // 業者セレクト更新 (照合タブ)
+    const sel=document.getElementById('packerSel');
+    const packers=[...new Set(S.compassData.map(r=>r.packer))].filter(Boolean).sort();
+    // VENDOR_MASTER未登録のpacker も追加
+    sel.innerHTML='<option value="">-- 業者を選択 --</option>';
+    // VENDOR_MASTERを先に
+    Object.entries(VENDOR_MASTER).forEach(([code,v])=>{
+      const ja=S.compassMap[code]||v.ja;
+      sel.innerHTML+=`<option value="${code}">[${v.type}] ${v.ja} — ${code}</option>`;
+    });
+    // VENDOR_MASTERにないpackerも追加
+    packers.forEach(p=>{
+      if(!VENDOR_MASTER[p]){
+        const ja=(S.compassMap[p]||'').replace(/^\d+\s+/,'')||p;
+        sel.innerHTML+=`<option value="${p}">[?] ${ja} — ${p}</option>`;
+      }
+    });
+
+    // UI更新
+    // BUG-1修正: compassDropはmatchタブにしか存在しないのでnullガード
+    const drop=document.getElementById('compassDrop');
+    if(drop){drop.classList.add('file-loaded');drop.querySelector('.drop-text').innerHTML=`<b style="color:var(--ok)">✓ ${file.name}</b> (${S.compassData.length.toLocaleString()}件)`;}
+    const cinfo=document.getElementById('compassInfo');
+    if(cinfo){cinfo.style.display='block';cinfo.innerHTML=`✓ <b>${S.compassData.length.toLocaleString()}件</b> / ${packers.length}社`;}
+    const step1sub=document.getElementById('step1-sub');
+    if(step1sub) step1sub.textContent=`${file.name} 読込済み (${S.compassData.length.toLocaleString()}件)`;
+    const step1=document.getElementById('step1');
+    if(step1){step1.classList.add('done');}
+
+    const dashInfo=document.getElementById('dashCompassInfo');
+    if(dashInfo) dashInfo.innerHTML=`<b style="color:var(--ok)">✓ ${file.name}</b> — ${S.compassData.length.toLocaleString()}件 / ${packers.length}社`;
+
+    if(S.selectedMonth) await renderDashboard(S.selectedMonth);
+    activateStep('step2');
+  }catch(e){alert('COMPASS読込エラー: '+e.message);}
+}
+
+// ══════════════════════════════════════════
+// 月判定 (DEC-010: Date객체前提)
+// ══════════════════════════════════════════
+function getHanteiYM(row){
+  const toYM=d=>{
+    if(!d||!(d instanceof Date)||isNaN(d)) return 0;
+    return d.getFullYear()*100+(d.getMonth()+1);
+  };
+  const prevYM=ym=>{const y=Math.floor(ym/100),m=ym%100;return m===1?(y-1)*100+12:y*100+(m-1);};
+  // ① work_date → work_date の年月 (リニアがトラック手配)
+  const wd=toYM(row.work_date); if(wd) return wd;
+  // ② pay_date → pay_date の前月 (業者自社トラック. cy_cut不使用)
+  const pd=toYM(row.pay_date); if(pd) return prevYM(pd);
+  // ③ 年月 (ATD基準、最終手段)
+  return row['年月']||0;
+}
+function nextMonth(ym){const y=Math.floor(ym/100),m=ym%100;return m===12?(y+1)*100+1:y*100+(m+1);}
+function formatYM(ym){return `${Math.floor(ym/100)}年${ym%100}月`;}
+
+// ══════════════════════════════════════════
+// ファイル名→業者特定
+// ══════════════════════════════════════════
+function extractPackerFromFilename(filename){
+  const base=filename.replace(/\.pdf$/i,'');
+  const m=base.match(/^(\d{2})(\d{2})(.+?)(?:[　\s]+(修正済み?|修正|修正後))?$/);
+  if(!m) return null;
+  const yy=parseInt(m[1]),mm=parseInt(m[2]);
+  if(yy<21||yy>99||mm<1||mm>12) return null;
+  return m[3].trim()||null;
+}
+function extractYMFromFilename(filename){
+  const m=filename.match(/^(\d{4})/);
+  if(!m) return 0;
+  const ym4=m[1];
+  return parseInt('20'+ym4.slice(0,2))*100+parseInt(ym4.slice(2,4));
+}
+function matchExtractedToPacker(extracted){
+  if(!extracted) return null;
+  const norm=extracted.toLowerCase().replace(/[株式会社合資会社有限会社㈱㈲\s　]/g,'').trim();
+
+  // 1. VENDOR_MASTER コード完全一致
+  if(VENDOR_MASTER[extracted]) return extracted;
+
+  // 2. VENDOR_MASTER エイリアス完全一致
+  for(const [code,v] of Object.entries(VENDOR_MASTER)){
+    for(const alias of v.alias){
+      const an=alias.toLowerCase().replace(/[株式会社合資会社有限会社㈱㈲\s　]/g,'').trim();
+      if(norm===an) return code;
+    }
+  }
+
+  // 3. 帳簿比較シートの日本語名照合
+  for(const [code,jaName] of Object.entries(S.compassMap)){
+    const clean=jaName.replace(/^\d+\s+/,'').replace(/[株式会社合資会社有限会社㈱㈲\s　]/g,'').toLowerCase().trim();
+    if(clean&&(norm===clean||norm.includes(clean)||clean.includes(norm))) return code;
+  }
+
+  // 4. VENDOR_MASTER エイリアス部分一致
+  for(const [code,v] of Object.entries(VENDOR_MASTER)){
+    for(const alias of v.alias){
+      const an=alias.toLowerCase().replace(/[株式会社合資会社有限会社㈱㈲\s　]/g,'').trim();
+      if(an&&(norm.includes(an)||an.includes(norm))) return code;
+    }
+  }
+
+  return null;
+}
+function autoMatchPacker(companyName){
+  if(!companyName) return null;
+  const norm=companyName.toLowerCase().replace(/[株式会社合資会社有限会社㈱㈲\s　]/g,'').trim();
+  // VENDOR_MASTER エイリアス照合
+  for(const [code,v] of Object.entries(VENDOR_MASTER)){
+    for(const alias of v.alias){
+      const an=alias.toLowerCase().replace(/[株式会社合資会社有限会社㈱㈲\s　]/g,'').trim();
+      if(an&&(norm.includes(an)||an.includes(norm))) return code;
+    }
+  }
+  // 帳簿比較照合
+  for(const [code,jaName] of Object.entries(S.compassMap)){
+    const clean=jaName.replace(/^\d+\s+/,'').replace(/[株式会社合資会社有限会社㈱㈲\s　]/g,'').toLowerCase().trim();
+    if(clean&&(norm.includes(clean)||clean.includes(norm))) return code;
+  }
+  return null;
+}
+function parseYM(s){
+  if(!s) return 0;
+  const m=s.match(/(\d{4})[年\/\-](\d{1,2})/);
+  return m?parseInt(m[1])*100+parseInt(m[2]):0;
+}
+
+// ══════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════
+async function renderDashboard(ym4){
+  const content=document.getElementById('dashContent');
+  content.innerHTML='<div class="info-text">読込中...</div>';
+  // DEC-014: 選択フォルダ自体を使用
+  const monthHandle=S.currentMonthHandle;
+  if(!monthHandle){content.innerHTML='<div class="empty-state"><div class="ei">📂</div><div>フォルダを選択してください</div></div>';return;}
+
+  // 結果JSON読込 (DEC-023: S.dashResults に保持)
+  let saved={};
+  try{
+    const jh=await monthHandle.getFileHandle('LEENAI_確認結果.json');
+    saved=JSON.parse(await(await jh.getFile()).text());
+  }catch{}
+  S.dashResults=saved; // DEC-023
+
+  // PDF ファイル検索
+  const pdfFiles={}, unmapped=[];
+  for await(const [name,handle] of monthHandle.entries()){
+    if(handle.kind==='file'&&name.toLowerCase().endsWith('.pdf')){
+      const extracted=extractPackerFromFilename(name);
+      if(!extracted){unmapped.push(name);continue;}
+      const code=matchExtractedToPacker(extracted);
+      if(code) pdfFiles[code]={name,handle};
+      else unmapped.push(name);
+    }
+  }
+  S.pdfFiles=pdfFiles; S.currentMonthHandle=monthHandle; S.currentYM4=ym4;
+
+  const targetYM=parseInt('20'+ym4.slice(0,2))*100+parseInt(ym4.slice(2,4));
+
+  // 業者別COMPASS合計
+  const packerMap={};
+  if(S.compassData.length>0){
+    S.compassData.filter(r=>getHanteiYM(r)===targetYM).forEach(r=>{
+      if(!r.packer) return;
+      if(!packerMap[r.packer]) packerMap[r.packer]={total:0,cnt:0};
+      packerMap[r.packer].total+=r.Amount||0;
+      packerMap[r.packer].cnt++;
+    });
+  }
+  Object.keys(pdfFiles).forEach(p=>{if(p&&!packerMap[p]) packerMap[p]={total:0,cnt:0};});
+
+  if(!Object.keys(packerMap).length&&!Object.keys(pdfFiles).length){
+    content.innerHTML=`<div class="empty-state"><div class="ei">📭</div>
+      <div>${formatYM4(ym4)}のデータがありません<br>
+      <span style="font-size:11px;">COMPASSデータを読み込むか、PDFをフォルダに配置してください</span></div></div>`;
+    return;
+  }
+
+  let totalCompass=0,totalConf=0,totalErr=0;
+  Object.values(packerMap).forEach(v=>totalCompass+=v.total);
+  Object.keys(saved).forEach(p=>{
+    if(saved[p].status==='ok'||saved[p].status==='next_month') totalConf++;
+    else if(saved[p].status==='error') totalErr++;
+  });
+  const totalPacker=Object.keys(packerMap).length;
+  const pdfCount=Object.keys(pdfFiles).length;
+
+  let html=`
+  <div class="summary-row">
+    <div class="sc"><div class="sl">対象業者数</div><div class="sv">${totalPacker}社</div></div>
+    <div class="sc"><div class="sl">COMPASS合計(税抜)</div><div class="sv">¥${totalCompass.toLocaleString()}</div></div>
+    <div class="sc"><div class="sl">✅ 確認完了</div><div class="sv" id="sum-ok" style="color:var(--ok)">${totalConf}社</div></div>
+    <div class="sc"><div class="sl">❌ 差異あり</div><div class="sv" id="sum-err" style="color:var(--error)">${totalErr}社</div></div>
+    <div class="sc"><div class="sl">⬜ 未確認</div><div class="sv" id="sum-unconf" style="color:var(--text2)">${totalPacker-totalConf-totalErr}社</div></div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+    <button class="btn btn-primary" id="bulkBtn" onclick="runBulkMatch()"
+      ${!S.apiKey||pdfCount===0||!S.compassData.length?'disabled':''}>
+      ⚡ 一括照合 (PDF ${pdfCount}社)
+    </button>
+    <button class="btn btn-ghost btn-sm" id="bulkStopBtn" onclick="stopBulkMatch()" style="display:none;">⏹ 中止</button>
+    <div id="bulkProgress" style="display:none;flex:1;min-width:200px;">
+      <div style="color:var(--text2);font-size:11px;margin-bottom:4px;" id="bulkProgressTxt"></div>
+      <div class="progress-bar"><div class="fill" id="bulkFill"></div></div>
+    </div>
+    ${!S.apiKey?'<span style="color:var(--error);font-size:11px;">⚠️ APIキー未設定</span>':
+      !S.compassData.length?'<span style="color:var(--warn);font-size:11px;">⚠️ COMPASSデータ未読込</span>':
+      pdfCount===0?'<span style="color:var(--text2);font-size:11px;">PDFファイルなし</span>':''}
+  </div>
+  <div class="dash-table-wrap"><table class="dash-table">
+    <tr>
+      <th>業者名</th><th>パターン</th>
+      <th class="num">COMPASS金額(税抜)</th><th class="num">請求書金額</th>
+      <th class="num">件数</th><th>PDFファイル</th>
+      <th>確認状態</th><th class="num">差額</th><th></th>
+    </tr>`;
+
+  const allPackers=[...new Set([...Object.keys(packerMap),...Object.keys(pdfFiles)])].sort();
+  for(const packer of allPackers){
+    const comp=packerMap[packer]||{total:0,cnt:0};
+    const vm=VENDOR_MASTER[packer];
+    const jaName=vm?vm.ja:((S.compassMap[packer]||'').replace(/^\d+\s+/,'')||packer);
+    const type=vm?.type||'?';
+    const ptClass=`pt-${type.toLowerCase()}`;
+    const s=saved[packer];
+    const pdf=pdfFiles[packer];
+
+    let badge,diffTxt,invTxt;
+    if(s){
+      invTxt=s.invoiceTotal?`¥${s.invoiceTotal.toLocaleString()}`:'—';
+      if(s.status==='ok'){badge='<span class="sbadge sbadge-ok">✅ 完了</span>';diffTxt='<span style="color:var(--ok)">¥0</span>';}
+      else if(s.status==='next_month'){badge='<span class="sbadge sbadge-next">🟡 翌月含む</span>';diffTxt=`<span style="color:var(--warn)">+¥${(s.nextMonthAmt||0).toLocaleString()}</span>`;}
+      else if(s.status==='error'){badge='<span class="sbadge sbadge-error">❌ 差異</span>';diffTxt=`<span style="color:var(--error)">¥${(s.diff||0).toLocaleString()}</span>`;}
+      else{badge='<span class="sbadge sbadge-warn">⚠️ 確認中</span>';diffTxt='—';}
+    }else{invTxt='—';badge='<span class="sbadge sbadge-none">⬜ 未確認</span>';diffTxt='—';}
+
+    const pdfBadge=pdf?`<span style="color:var(--ok);font-size:11px;">✅ ${pdf.name}</span>`
+      :'<span style="color:var(--text3);font-size:11px;">—</span>';
+
+    const hasPdf=!!(pdf&&pdf.handle);
+    const hasCompass=comp.total>0;
+    html+=`<tr id="row-${packer}">
+      <td><b>${jaName}</b><br><span style="font-size:10px;color:var(--text3)">${packer}</span></td>
+      <td><span class="ptag ${ptClass}">${type}</span><br>
+          <span style="font-size:10px;color:var(--text2)">${PATTERN_LABEL[type]||'不明'}</span></td>
+      <td class="num">¥${comp.total.toLocaleString()}</td>
+      <td class="num" id="invoice-${packer}">${invTxt}</td>
+      <td class="num">${comp.cnt}件</td>
+      <td>${pdfBadge}</td>
+      <td id="status-${packer}">${badge}</td>
+      <td class="num" id="diff-${packer}">${diffTxt}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-ghost btn-sm" onclick="goToMatch('${packer}','${ym4}')"
+          ${!hasPdf&&!hasCompass?'disabled':''}>📋 照合</button>
+        ${s&&(s.status==='error'||s.status==='next_month')?`<button class="btn btn-precision btn-sm" style="margin-left:4px;" onclick="goToMatchPrecision('${packer}','${ym4}')">🔍 精密</button>`:''}
+      </td>
+    </tr>`;
+  }
+  html+='</table></div>';
+
+  if(!S.compassData.length) html+=`<div class="info-text mt8">⚠️ COMPASSデータ未読込のため金額は表示されていません。</div>`;
+  if(unmapped.length) html+=`<div class="info-text mt8" style="color:var(--text3);">⚪ 業者特定できなかったPDF (${unmapped.length}件): ${unmapped.join(', ')}</div>`;
+  content.innerHTML=html;
+}
+
+// ══════════════════════════════════════════
+// 照合タブへ移動 (通常照合)
+// ══════════════════════════════════════════
+async function goToMatch(packer,ym4){
+  if(!S.apiKey){alert('APIキーを設定してください');return;}
+  if(!S.compassData.length){alert('COMPASSデータを読み込んでください');return;}
+  await _doMatch(packer,ym4);
+}
+
+// 精密照合 (差異ありの業者用: フルOCR)
+async function goToMatchPrecision(packer,ym4){
+  if(!S.apiKey){alert('APIキーを設定してください');return;}
+  if(!S.compassData.length){alert('COMPASSデータを読み込んでください');return;}
+  await _doMatch(packer,ym4);
+}
+
+async function _doMatch(packer,ym4){
+  switchTab('match');
+  S.selectedPacker=packer;
+  S.targetMonth=parseInt('20'+ym4.slice(0,2))*100+parseInt(ym4.slice(2,4));
+  _updateCompassFilter();
+
+  // 照合対象業者バナーを表示
+  const vm=VENDOR_MASTER[packer];
+  const ja=vm?.ja||(S.compassMap[packer]||packer).replace(/^\d+\s+/,'');
+  const banner=document.getElementById('matchVendorBanner');
+  if(banner){
+    banner.style.display='flex';
+    document.getElementById('matchVendorName').textContent=`${ja}（${packer}）`;
+    document.getElementById('matchVendorMonth').textContent=formatYM(S.targetMonth);
+    document.getElementById('matchVendorPattern').innerHTML=vm?`<span class="ptag pt-${vm.type.toLowerCase()}">${vm.type}型</span> ${PATTERN_LABEL[vm.type]||''}`:'';}
+
+  const pdfEntry=S.pdfFiles?.[packer];
+  if(!pdfEntry?.handle){
+    activateStep('step2');
+    return;
+  }
+  activateStep('step2');
+  const drop=document.getElementById('invoiceDrop');
+  const fill=document.getElementById('ocrFill');
+  const status=document.getElementById('ocrStatus');
+  drop.classList.add('file-loaded');
+  drop.querySelector('.drop-text').innerHTML=`<b style="color:var(--ok)">✓ ${pdfEntry.name}</b>`;
+  document.getElementById('ocrProgress').style.display='block';
+  fill.style.width='10%';
+  status.innerHTML='<span class="spinner"></span> PDFを読込中...';
+
+  try{
+    const file=await pdfEntry.handle.getFile();
+    const b64=await fileToB64(file);
+    fill.style.width='40%';
+    status.innerHTML='<span class="spinner"></span> AI解析中...';
+
+    const vm=VENDOR_MASTER[packer];
+    const pattern=vm?.type||'E';
+    const summaryOnly=vm?.ocr_mode==='summary';
+    const result=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(pattern,false,summaryOnly), summaryOnly?4000:8000);
+    fill.style.width='100%';
+
+    S.invoiceData=result;
+    status.innerHTML=`✓ 解析完了: ${vm?.ja||packer} [${pattern}型] / ${formatYM(S.targetMonth)}`;
+    showInvoiceResult(result);
+    document.getElementById('step2').classList.add('done');
+    activateStep('step3');
+    checkMatchReady();
+    runMatch();
+  }catch(e){
+    fill.style.background='var(--error)';
+    status.innerHTML=`❌ エラー: ${e.message}`;
+    console.error(e);
+  }
+}
+
+// ══════════════════════════════════════════
+// 一括照合
+// ══════════════════════════════════════════
+function stopBulkMatch(){S._bulkStop=true;}
+
+async function runBulkMatch(){
+  if(!S.pdfFiles||!S.currentMonthHandle){alert('フォルダを選択してください');return;}
+  if(!S.apiKey){alert('APIキーを入力してください');return;}
+  if(!S.compassData.length){alert('COMPASSデータを読み込んでください');return;}
+  const pdfEntries=Object.entries(S.pdfFiles);
+  if(!pdfEntries.length){alert('PDFファイルがありません');return;}
+
+  S._bulkStop=false;
+  const bulkBtn=document.getElementById('bulkBtn');
+  const bulkStopBtn=document.getElementById('bulkStopBtn');
+  const bulkProgress=document.getElementById('bulkProgress');
+  const bulkFill=document.getElementById('bulkFill');
+  const bulkTxt=document.getElementById('bulkProgressTxt');
+  bulkBtn.disabled=true; bulkStopBtn.style.display='inline-flex'; bulkProgress.style.display='block';
+
+  let saved={};
+  try{
+    const jh=await S.currentMonthHandle.getFileHandle('LEENAI_確認結果.json');
+    saved=JSON.parse(await(await jh.getFile()).text());
+  }catch{}
+
+  let done=0,okCount=0,errCount=0,skipCount=0;
+  const total=pdfEntries.length;
+
+  for(const [packer,{name,handle}] of pdfEntries){
+    if(S._bulkStop) break;
+    const vm=VENDOR_MASTER[packer];
+    const ja=vm?.ja||packer;
+    bulkTxt.textContent=`処理中 ${done+1}/${total}: ${ja}`;
+    bulkFill.style.width=`${(done/total)*100}%`;
+    updateRowStatus(packer,'処理中','processing','—',null);
+
+    try{
+      const file=await handle.getFile();
+      const b64=await fileToB64(file);
+
+      // DEC-021: max_tokens 4000
+      // ocr_mode:'summary' (OOMOTO等) → 合計のみ、明細不要
+      const useOCRSummary = vm?.ocr_mode === 'summary';
+      let parsed;
+      try{
+        parsed=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(vm?.type||'E', true, useOCRSummary));
+      }catch(e){
+        if(e.message&&(e.message.includes('429')||e.message.includes('529'))){
+          updateRowStatus(packer,'待機中','processing','—',null);
+          await sleep(15000);
+          skipCount++; done++;
+          updateRowStatus(packer,'スキップ','warn','—',null);
+          continue;
+        }
+        throw e;
+      }
+
+      const targetYM=parseInt('20'+S.currentYM4.slice(0,2))*100+parseInt(S.currentYM4.slice(2,4));
+      const filtered=S.compassData.filter(r=>r.packer===packer&&getHanteiYM(r)===targetYM);
+      const compassTotal=filtered.reduce((s,r)=>s+(r.Amount||0),0);
+      // 翌月分チェック用
+      const filteredNext=S.compassData.filter(r=>r.packer===packer&&getHanteiYM(r)===nextMonth(targetYM));
+      const compassNext=filteredNext.reduce((s,r)=>s+(r.Amount||0),0);
+
+      // DEC-001: invoiceAmt = total_with_tax - tax
+      const invoiceTotal=(parsed.total_with_tax||0)-(parsed.tax||0);
+      const diff=invoiceTotal-compassTotal;
+
+      // 翌月分含む判定: 差額がCOMPASS翌月の範囲内にあれば🟡
+      let status='error';
+      let nextMonthAmt=0;
+      if(diff===0){
+        status='ok';
+      }else if(compassNext>0 && diff>0 && diff<=compassNext){
+        status='next_month';
+        nextMonthAmt=diff;
+      }
+
+      saved[packer]={packer,targetMonth:targetYM,compassTotal,invoiceTotal,diff,status,
+        nextMonthAmt,
+        jaName:vm?.ja||(S.compassMap[packer]||'').replace(/^\d+\s+/,''),
+        checkedAt:new Date().toISOString(),filename:name};
+
+      if(status==='ok'){updateRowStatus(packer,'完了','ok','¥0',invoiceTotal);okCount++;}
+      else if(status==='next_month'){updateRowStatus(packer,'翌月含む','next_month',`+¥${nextMonthAmt.toLocaleString()}`,invoiceTotal);okCount++;}
+      else{updateRowStatus(packer,'差異','error',`¥${diff.toLocaleString()}`,invoiceTotal);errCount++;}
+
+    }catch(e){
+      console.error(packer,e);
+      updateRowStatus(packer,'OCR失敗','warn','—',null);
+      skipCount++;
+    }
+    done++;
+    if(!S._bulkStop&&done<total) await sleep(2000);
+  }
+
+  // 結果保存
+  try{
+    const fh=await S.currentMonthHandle.getFileHandle('LEENAI_確認結果.json',{create:true});
+    const w=await fh.createWritable(); await w.write(JSON.stringify(saved,null,2)); await w.close();
+    S.dashResults=saved;
+  }catch(e){console.error('保存エラー:',e);}
+
+  bulkFill.style.width='100%';
+  bulkTxt.textContent=S._bulkStop?`中止しました (${done}/${total}社)`:`完了! ✅${okCount}社 ❌${errCount}社 ⚠️${skipCount}社`;
+  bulkBtn.disabled=false; bulkStopBtn.style.display='none';
+
+  // 집계카드 업데이트
+  const elOk=document.getElementById('sum-ok');
+  const elErr=document.getElementById('sum-err');
+  const elUnconf=document.getElementById('sum-unconf');
+  if(elOk) elOk.textContent=okCount+'社';
+  if(elErr) elErr.textContent=errCount+'社';
+  if(elUnconf) elUnconf.textContent=Math.max(0,total-okCount-errCount-skipCount)+'社';
+}
+
+function updateRowStatus(packer,label,type,diff,invoiceAmt){
+  const se=document.getElementById('status-'+packer);
+  const de=document.getElementById('diff-'+packer);
+  const ie=document.getElementById('invoice-'+packer);
+  if(!se) return;
+  const cls=type==='ok'?'sbadge-ok':type==='error'?'sbadge-error':
+            type==='next_month'?'sbadge-next':type==='processing'?'sbadge-none':'sbadge-warn';
+  const icon=type==='ok'?'✅':type==='error'?'❌':type==='next_month'?'🟡':type==='processing'?'⏳':'⚠️';
+  se.innerHTML=`<span class="sbadge ${cls}">${icon} ${label}</span>`;
+  if(de){const c=type==='ok'?'var(--ok)':type==='error'?'var(--error)':type==='next_month'?'var(--warn)':'var(--text2)';de.innerHTML=`<span style="color:${c}">${diff}</span>`;}
+  if(ie&&invoiceAmt!=null) ie.textContent=invoiceAmt>0?'¥'+invoiceAmt.toLocaleString():'—';
+}
+
+// ══════════════════════════════════════════
+// OCR プロンプト (パターン別)
+// ══════════════════════════════════════════
+function buildOCRPrompt(pattern,bulkMode,summaryOnly){
+  const common=`【重要ルール】
+・total_before_tax = 当月売上合計（税抜き。消費税は含まない）
+・tax = 消費税合計
+・total_with_tax = 請求総額（税込み）
+・表紙/最初のページの合計金額を優先（中間小計や明細の合算は使わない）
+・複数の独立した請求書が1PDFにある場合のみ合算する
+・数値はカンマなし整数。JSONのみ返してください。`;
+
+  const header=`{"company":"請求元会社名","period":"対象期間(例:2026年2月)","total_before_tax":税抜合計,"tax":消費税,"total_with_tax":税込合計`;
+
+  // summaryOnly or bulkMode → 合計のみ
+  if(bulkMode||summaryOnly){
+    return `この請求書から合計金額のみ抽出してください。JSONのみ返してください。\n${header}}\n${common}`;
+  }
+
+  // パターン別 items定義
+  const itemDefs={
+    'A': `,"items":[{"date":"MM/DD","container_no":"コンテナ番号","booking_no":"BKG No.(なければnull)","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
+    'B': `,"items":[{"date":"MM/DD","slip_no":"伝票No.","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
+    'C': `,"items":[{"date":"MM/DD","co_no":"CO番号(LR-XXXX-XX)","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
+    'D': `,"items":[{"item":"品名","weight_kg":合計重量kg,"unit_price":単価¥/kg,"amount":合計金額}]`,
+    'DA':`,"items":[{"item":"品名","weight_kg":合計重量kg,"unit_price":単価¥/kg,"amount":合計金額}]`,
+    'E': `,"items":[{"date":"MM/DD","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
+    'F': `,"items":[{"date":"MM/DD","slip_no":"伝票No.","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額,"truck_no":"車番(なければnull)"}]`,
+    'G': `,"items":[{"date":"MM/DD","booking_no":"BKG No.(なければnull)","item":"品名","weight_kg":合計重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
+    'Y': `,"items":[]`,
+  };
+  const notes={
+    'A':'・1行=1コンテナ\n・入金行・合計行はitemsに含めない',
+    'B':'・単価修正伝票(マイナス行)もitemsに含める\n・入金行はitemsに含めない',
+    'C':'・摘要欄のLR-XXXX-XX形式番号をco_noとして読む\n・入金行はitemsに含めない',
+    'D':'・品目別合計のみ。明細行は不要',
+    'DA':'・表紙の品目別合計のみ。明細書ページは不要',
+    'E':'・入金行・合計行はitemsに含めない',
+    'F':'・入金行・手数料行はitemsに含めない',
+    'G':'・BKG単位の集計行を読む\n・入金行はitemsに含めない',
+    'Y':'・明細行は不要。合計金額のみ',
+  };
+  const itemDef=itemDefs[pattern]||itemDefs['E'];
+  const note=notes[pattern]||'';
+  return `この請求書から以下の情報をJSON形式で抽出してください。JSONのみ返してください。\n${header}${itemDef}}\n${common}\n${note}`;
+}
+
+// ══════════════════════════════════════════
+// Claude API 呼び出し
+// ══════════════════════════════════════════
+// DEC-021: max_tokens — bulk/summary: 4000, 個別OCR: 8000 (大量明細業者対応)
+async function callClaude(b64, mimeType, prompt, maxTokens=4000){
+  const resp=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':S.apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true',
+    },
+    body:JSON.stringify({
+      model:'claude-sonnet-4-6',
+      max_tokens:maxTokens,
+      messages:[{role:'user',content:[
+        {type:'document',source:{type:'base64',media_type:mimeType,data:b64}},
+        {type:'text',text:prompt}
+      ]}]
+    })
+  });
+  if(!resp.ok){
+    const e=await resp.json();
+    throw new Error(e.error?.message||`HTTP ${resp.status}`);
+  }
+  const data=await resp.json();
+  const text=data.content.map(c=>c.text||'').join('');
+  const clean=text.replace(/```json|```/g,'').trim();
+  try{return JSON.parse(clean);}
+  catch{const m=clean.match(/\{[\s\S]*\}/);if(m)return JSON.parse(m[0]);throw new Error('JSON解析失敗');}
+}
+
+// ══════════════════════════════════════════
+// PDF 手動ロード
+// ══════════════════════════════════════════
+async function loadInvoicePDF(file){
+  if(!file) return;
+  if(!S.compassData.length){alert('先にCOMPASS Excelを読み込んでください');return;}
+  if(!S.apiKey){alert('APIキーを入力してください');return;}
+
+  const drop=document.getElementById('invoiceDrop');
+  const fill=document.getElementById('ocrFill');
+  const status=document.getElementById('ocrStatus');
+  drop.classList.add('file-loaded');
+  drop.querySelector('.drop-text').innerHTML=`<b style="color:var(--ok)">✓ ${file.name}</b>`;
+  document.getElementById('ocrProgress').style.display='block';
+  fill.style.width='20%'; status.innerHTML='<span class="spinner"></span> 解析中...';
+
+  // ファイル名から業者特定を試みる
+  const filenameCode=matchExtractedToPacker(extractPackerFromFilename(file.name));
+  const filenameYM=extractYMFromFilename(file.name);
+
+  const b64=await fileToB64(file);
+  fill.style.width='50%';
+
+  try{
+    const pattern=VENDOR_MASTER[filenameCode]?.type||'E';
+    const parsed=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(pattern,false), 8000);
+    fill.style.width='100%';
+    S.invoiceData=parsed;
+
+    let autoCode=filenameCode;
+    let autoYM=filenameYM;
+    if(!autoCode) autoCode=autoMatchPacker(parsed.company);
+    if(!autoYM) autoYM=parseYM(parsed.period);
+
+    if(autoCode&&autoYM){
+      S.selectedPacker=autoCode; S.targetMonth=autoYM;
+      document.getElementById('manualPackerBox').style.display='none';
+      const vm=VENDOR_MASTER[autoCode];
+      status.innerHTML=`✓ 業者特定: <b>${vm?.ja||autoCode}</b> [${vm?.type||'?'}型] / ${formatYM(autoYM)}`;
+    }else{
+      document.getElementById('manualPackerBox').style.display='block';
+      document.getElementById('ocrCompanyHint').textContent=`OCR結果: "${parsed.company||'不明'}" / "${parsed.period||'不明'}"`;
+      if(autoYM){document.getElementById('targetMonth').value=String(autoYM);S.targetMonth=autoYM;}
+      if(autoCode){document.getElementById('packerSel').value=autoCode;S.selectedPacker=autoCode;}
+      status.innerHTML='⚠️ 業者を手動で指定してください';
+    }
+    showInvoiceResult(parsed);
+  }catch(e){
+    fill.style.background='var(--error)';
+    status.innerHTML=`❌ エラー: ${e.message}`;
+    console.error(e);
+  }
+}
+
+// ══════════════════════════════════════════
+// COMPASS フィルタ
+// ══════════════════════════════════════════
+function _updateCompassFilter(){
+  if(!S.selectedPacker||!S.targetMonth) return;
+  S._compassFiltered=S.compassData.filter(r=>r.packer===S.selectedPacker&&getHanteiYM(r)===S.targetMonth);
+  S._compassNext=S.compassData.filter(r=>r.packer===S.selectedPacker&&getHanteiYM(r)===nextMonth(S.targetMonth));
+  const sd=document.getElementById('compassSummaryInResult');
+  if(sd){
+    const total=S._compassFiltered.reduce((s,r)=>s+(r.Amount||0),0);
+    const vm=VENDOR_MASTER[S.selectedPacker];
+    const ja=vm?.ja||(S.compassMap[S.selectedPacker]||S.selectedPacker).replace(/^\d+\s+/,'');
+    const type=vm?.type||'?';
+    sd.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+      <span style="font-weight:700">${ja}</span>
+      <span class="ptag pt-${type.toLowerCase()}">${type}</span>
+      <span style="color:var(--text2)">${formatYM(S.targetMonth)}</span>
+      <span style="color:var(--text2);font-size:12px;">${S._compassFiltered.length}件 / ¥${total.toLocaleString()}</span>
+      ${S._compassNext?.length?`<span style="color:var(--warn);font-size:11px;">🔔 翌月候補 ${S._compassNext.length}件</span>`:''}
+    </div>`;
+  }
+  checkMatchReady();
+}
+function onManualPackerChange(){S.selectedPacker=document.getElementById('packerSel').value;_updateCompassFilter();}
+function onManualMonthChange(){S.targetMonth=parseInt(document.getElementById('targetMonth').value)||0;_updateCompassFilter();}
+
+function showInvoiceResult(data){
+  const div=document.getElementById('invoiceResult');
+  div.style.display='block';
+  const items=data.items||[];
+  div.innerHTML=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;">
+    <div id="compassSummaryInResult"></div>
+    <div class="summary-row">
+      <div class="sc"><div class="sl">当月売上(税抜)</div><div class="sv">¥${(data.total_before_tax||0).toLocaleString()}</div></div>
+      <div class="sc"><div class="sl">消費税</div><div class="sv">¥${(data.tax||0).toLocaleString()}</div></div>
+      <div class="sc"><div class="sl">請求総額(税込)</div><div class="sv">¥${(data.total_with_tax||0).toLocaleString()}</div></div>
+      <div class="sc"><div class="sl">DEC-001 invoiceAmt</div><div class="sv" style="color:var(--accent)">¥${((data.total_with_tax||0)-(data.tax||0)).toLocaleString()}</div></div>
+    </div>
+    ${items.length?`<div class="tbl-wrap" style="max-height:180px;overflow-y:auto;">
+      <table><tr><th>日付</th><th>コンテナ/BKG/CO</th><th>品名</th>
+      <th style="text-align:right">kg</th><th style="text-align:right">単価</th><th style="text-align:right">金額</th></tr>
+      ${items.map(it=>`<tr>
+        <td>${it.date||'—'}</td>
+        <td class="mono">${it.container_no||it.booking_no||it.co_no||'—'}</td>
+        <td>${it.item||'—'}</td>
+        <td style="text-align:right">${it.weight_kg!=null?it.weight_kg.toLocaleString():'—'}</td>
+        <td style="text-align:right">${it.unit_price!=null?'¥'+it.unit_price:'—'}</td>
+        <td style="text-align:right">¥${(it.amount||0).toLocaleString()}</td>
+      </tr>`).join('')}</table></div>`:''}
+  </div>`;
+  _updateCompassFilter();
+  document.getElementById('step2-sub').textContent=(VENDOR_MASTER[S.selectedPacker]?.ja||data.company||'').replace(/^\d+\s+/,'')+' 読込済み';
+  document.getElementById('step2').classList.add('done');
+  checkMatchReady();
+  activateStep('step3');
+}
+
+function checkMatchReady(){
+  const ready=(S._compassFiltered?.length>0)&&S.invoiceData!==null;
+  document.getElementById('matchBtn').disabled=!ready;
+}
+
+// ══════════════════════════════════════════
+// 照合実行
+// ══════════════════════════════════════════
+function runMatch(){
+  const compassTotal=(S._compassFiltered||[]).reduce((s,r)=>s+(r.Amount||0),0);
+  const compassNextTotal=(S._compassNext||[]).reduce((s,r)=>s+(r.Amount||0),0);
+  // DEC-001: invoiceAmt = total_with_tax - tax
+  const invoiceTotal=(S.invoiceData?.total_with_tax||0)-(S.invoiceData?.tax||0);
+  const diff=invoiceTotal-compassTotal;
+
+  // 翌月分含む判定: 差額がCOMPASS翌月の範囲内にあれば🟡
+  // diff > 0 かつ diff ≤ COMPASS翌月合計 → 翌月分が一部含まれている
+  let status='error', nextMonthAmt=0;
+  if(diff===0){
+    status='ok';
+  }else if(compassNextTotal>0 && diff>0 && diff<=compassNextTotal){
+    status='next_month';
+    nextMonthAmt=diff; // 差額=翌月分含み額
+  }
+
+  S.lastMatchResult={packer:S.selectedPacker,targetMonth:S.targetMonth,
+    compassTotal,invoiceTotal,diff,status,nextMonthAmt};
+
+  const isOk=status==='ok', isNext=status==='next_month';
+  const bannerClass=isOk?'ok':isNext?'next':'error';
+  const icon=isOk?'✅':isNext?'🟡':'❌';
+  const label=isOk?'一致':isNext?'翌月分含む':'不一致';
+
+  let html=`<div class="match-banner ${bannerClass}">
+    <div style="font-size:22px">${icon}</div>
+    <div>
+      <div>合計照合: ${label}</div>
+      <div class="detail">請求書(税抜) ¥${invoiceTotal.toLocaleString()} / COMPASS当月 ¥${compassTotal.toLocaleString()}
+      ${isNext?` / COMPASS翌月 ¥${compassNextTotal.toLocaleString()} <b style="color:var(--warn)">→ 翌月分¥${nextMonthAmt.toLocaleString()}を含む</b>`:''}
+      ${!isOk&&!isNext?` → 差額 <b style="color:var(--error)">¥${diff.toLocaleString()}</b>`:''}</div>
+    </div>
+  </div>`;
+
+  if(isOk){
+    html+=`<div class="info-text mt8">✅ 合計金額が一致しています。</div>`;
+  }else if(isNext){
+    html+=`<div class="manual-input mt8" style="border-color:var(--warn)">
+      <label style="color:var(--warn)">🟡 翌月分含む — 正常範囲</label>
+      <div class="hint">当月COMPASS ¥${compassTotal.toLocaleString()} + 翌月分 ¥${nextMonthAmt.toLocaleString()} = 請求書 ¥${invoiceTotal.toLocaleString()}</div>
+    </div>`;
+  }else{
+    const items=S.invoiceData?.items||[];
+    html+=items.length?renderDetailMatch(items)
+      :`<div class="manual-input mt8"><label>明細照合不可</label><div class="hint">差額: ¥${diff.toLocaleString()} / OCRに明細がありません</div></div>`;
+  }
+  if(S._compassNext?.length&&!isNext) html+=renderNextMonthWarn();
+
+  document.getElementById('matchResult').innerHTML=html;
+  document.getElementById('step3-sub').textContent=isOk?'✅ 一致':isNext?'🟡 翌月含む':'❌ 差異あり';
+  const sb=document.getElementById('saveBtn');
+  sb.style.display='inline-flex'; sb.disabled=false;
+}
+
+function renderDetailMatch(items){
+  const rows=S._compassFiltered||[];
+  const used=new Set();
+  const results=[];
+
+  for(const it of items){
+    if(!it.amount) continue;
+    let found=null,foundIdx=-1;
+    // A型: コンテナNo.で照合
+    if(it.container_no){
+      const idx=rows.findIndex((r,i)=>!used.has(i)&&r.container_no===it.container_no);
+      if(idx>=0){found=rows[idx];foundIdx=idx;}
+    }
+    // C型: CO番号で照合
+    if(!found&&it.co_no){
+      const idx=rows.findIndex((r,i)=>!used.has(i)&&r.purchase_co_no===it.co_no);
+      if(idx>=0){found=rows[idx];foundIdx=idx;}
+    }
+    // G型: BKG No.で照合
+    if(!found&&it.booking_no){
+      const idx=rows.findIndex((r,i)=>!used.has(i)&&r.cr49f_booking_no===it.booking_no);
+      if(idx>=0){found=rows[idx];foundIdx=idx;}
+    }
+    // 汎用: 単価+重量で照合
+    if(!found&&it.unit_price){
+      const idx=rows.findIndex((r,i)=>{
+        if(used.has(i)) return false;
+        const priceOk=Math.abs((r.purchase_price||0)-it.unit_price)<0.01;
+        const kgOk=it.weight_kg!=null?Math.abs((r.Net_Weight||0)*1000-it.weight_kg)<=Math.max(it.weight_kg*0.001,1):true;
+        return priceOk&&kgOk;
+      });
+      if(idx>=0){found=rows[idx];foundIdx=idx;}
+    }
+    if(foundIdx>=0) used.add(foundIdx);
+
+    if(!found){results.push({status:'error',type:'missing',it,compass:null});}
+    else{
+      const errors=[];
+      if(it.unit_price!=null&&found.purchase_price!=null&&Math.abs(found.purchase_price-it.unit_price)>=0.01)
+        errors.push({type:'price',inv:it.unit_price,cmp:found.purchase_price});
+      if(it.weight_kg!=null&&found.Net_Weight!=null){
+        const cmpKg=found.Net_Weight*1000;
+        if(Math.abs(cmpKg-it.weight_kg)>Math.max(it.weight_kg*0.001,1))
+          errors.push({type:'weight',inv:it.weight_kg,cmp:cmpKg});
+      }
+      results.push({status:errors.length?'error':'ok',errors,it,compass:found});
+    }
+  }
+
+  const unmatched=rows.filter((_,i)=>!used.has(i));
+
+  // ── 前月支払済み判定 ──
+  // pay_dateの年月 == targetYM → 前月（当月）に既に支払済み → 無視可能
+  const toYM=d=>{
+    if(!d||!(d instanceof Date)||isNaN(d)) return 0;
+    return d.getFullYear()*100+(d.getMonth()+1);
+  };
+  const prevPaid   = unmatched.filter(r=>toYM(r.pay_date)===S.targetMonth);
+  const needsCheck = unmatched.filter(r=>toYM(r.pay_date)!==S.targetMonth);
+  const prevPaidTotal = prevPaid.reduce((s,r)=>s+(r.Amount||0),0);
+
+  // 前月支払済みを除いた調整後COMPASS合計
+  const compassTotal = (S._compassFiltered||[]).reduce((s,r)=>s+(r.Amount||0),0);
+  const invoiceTotal = (S.invoiceData?.total_with_tax||0)-(S.invoiceData?.tax||0);
+  const adjustedCompass = compassTotal - prevPaidTotal;
+  const isPrevPaidOK = prevPaid.length>0 && Math.abs(invoiceTotal-adjustedCompass)<1;
+
+  const okCnt=results.filter(r=>r.status==='ok').length;
+  const errCnt=results.filter(r=>r.status==='error').length;
+
+  // 前月支払済みで説明できる場合 → 上部バナー更新
+  if(isPrevPaidOK){
+    const banner=document.querySelector('.match-banner');
+    if(banner){
+      banner.className='match-banner ok';
+      banner.innerHTML=`<div style="font-size:22px">✅</div>
+        <div><div>前月支払済含む OK</div>
+        <div class="detail">請求書 ¥${invoiceTotal.toLocaleString()} / COMPASS調整後 ¥${adjustedCompass.toLocaleString()}
+        <span style="color:var(--text2)"> (前月支払済 ¥${prevPaidTotal.toLocaleString()} 除外)</span></div></div>`;
+    }
+    // step3-subも更新
+    document.getElementById('step3-sub').textContent='✅ 前月支払済含む OK';
+  }
+
+  let html=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:12px;">
+    <div class="summary-row">
+      <div class="sc ok"><div class="sl">✅ OK</div><div class="sv">${okCnt}件</div></div>
+      <div class="sc error"><div class="sl">❌ ERROR</div><div class="sv">${errCnt}件</div></div>
+      <div class="sc"><div class="sl">🔔 要確認</div><div class="sv" style="color:var(--warn)">${needsCheck.length}件</div></div>
+      ${prevPaid.length?`<div class="sc"><div class="sl">⚪ 前月支払済</div><div class="sv" style="color:var(--text2)">${prevPaid.length}件</div></div>`:''}
+    </div>
+    ${isPrevPaidOK?`<div style="font-size:12px;color:var(--ok);margin-top:4px;">✅ 前月支払済み(¥${prevPaidTotal.toLocaleString()})を除くと請求書と一致 — 担当者確認不要</div>`:''}
+  </div>
+  <div class="tbl-wrap mt8"><table>
+    <tr><th>状態</th><th>識別キー</th><th>品名</th>
+    <th style="text-align:right">請求kg</th><th style="text-align:right">COMPASSkg</th>
+    <th style="text-align:right">請求単価</th><th style="text-align:right">COMPASS単価</th>
+    <th style="text-align:right">請求金額</th><th style="text-align:right">COMPASS金額</th>
+    <th>差異</th></tr>`;
+
+  for(const r of results){
+    const {status,errors=[],it,compass}=r;
+    const tag=status==='ok'?'<span class="tag tag-ok">✅</span>'
+      :!compass?'<span class="tag tag-error">❌ 未登録</span>'
+      :'<span class="tag tag-error">❌</span>';
+    const key=it.container_no||it.co_no||it.booking_no||`${it.date||''}${it.item||''}`;
+    const cmpKg=compass?(compass.Net_Weight*1000).toLocaleString():'—';
+    const errTxt=!compass?'<span class="diff-text">COMPASS未登録</span>'
+      :errors.map(e=>e.type==='price'?`<span class="diff-text">単価 ¥${e.inv}→¥${e.cmp}</span>`
+        :e.type==='weight'?`<span class="diff-text">重量差 ${e.inv.toLocaleString()}→${parseFloat(e.cmp).toFixed(0)}</span>`:'').join(' ')||'—';
+    html+=`<tr><td>${tag}</td><td class="mono" style="font-size:11px">${key}</td><td>${it.item||'—'}</td>
+      <td style="text-align:right">${it.weight_kg!=null?it.weight_kg.toLocaleString():'—'}</td>
+      <td style="text-align:right">${cmpKg}</td>
+      <td style="text-align:right">${it.unit_price!=null?'¥'+it.unit_price:'—'}</td>
+      <td style="text-align:right">${compass?'¥'+compass.purchase_price:'—'}</td>
+      <td style="text-align:right">¥${(it.amount||0).toLocaleString()}</td>
+      <td style="text-align:right">${compass?'¥'+(compass.Amount||0).toLocaleString():'—'}</td>
+      <td>${errTxt}</td></tr>`;
+  }
+  // 🔔 要確認 (pay_date ≠ targetYM)
+  for(const r of needsCheck){
+    const key=r.container_no||r.cr49f_booking_no||r.purchase_co_no||'—';
+    const wd=r.work_date?r.work_date.toLocaleDateString('ja-JP',{month:'2-digit',day:'2-digit'}):'—';
+    const pd=r.pay_date?r.pay_date.toLocaleDateString('ja-JP',{year:'2-digit',month:'2-digit'}):'—';
+    html+=`<tr><td><span class="tag tag-warn">🔔</span></td>
+      <td class="mono" style="font-size:11px">${key}</td><td>${r.crcf9_item_japan||'—'}</td>
+      <td colspan="2" style="text-align:center;color:var(--text2)">作業日: ${wd}</td>
+      <td>—</td><td style="text-align:right">¥${r.purchase_price||'—'}</td>
+      <td>—</td><td style="text-align:right">¥${(r.Amount||0).toLocaleString()}</td>
+      <td><span class="diff-text">COMPASSのみ (支払: ${pd})</span></td></tr>`;
+  }
+  // ⚪ 前月支払済み (pay_date == targetYM)
+  for(const r of prevPaid){
+    const key=r.container_no||r.cr49f_booking_no||r.purchase_co_no||'—';
+    const wd=r.work_date?r.work_date.toLocaleDateString('ja-JP',{month:'2-digit',day:'2-digit'}):'—';
+    const pd=r.pay_date?r.pay_date.toLocaleDateString('ja-JP',{year:'2-digit',month:'2-digit'}):'—';
+    html+=`<tr style="opacity:.55"><td><span class="tag" style="background:var(--surface2);color:var(--text3)">⚪</span></td>
+      <td class="mono" style="font-size:11px">${key}</td><td>${r.crcf9_item_japan||'—'}</td>
+      <td colspan="2" style="text-align:center;color:var(--text3)">作業日: ${wd}</td>
+      <td>—</td><td style="text-align:right;color:var(--text3)">¥${r.purchase_price||'—'}</td>
+      <td>—</td><td style="text-align:right;color:var(--text3)">¥${(r.Amount||0).toLocaleString()}</td>
+      <td style="color:var(--text3)">前月支払済み (${pd})</td></tr>`;
+  }
+  return html+'</table></div>';
+}
+
+function renderNextMonthWarn(){
+  return `<div class="manual-input mt8" style="border-color:var(--warn)">
+    <label style="color:var(--warn)">🔔 翌月請求候補 (${S._compassNext.length}件)</label>
+    <div class="tbl-wrap" style="max-height:80px;overflow-y:auto;margin-top:6px;">
+      <table><tr><th>コンテナ/BKG</th><th>品名</th><th style="text-align:right">金額</th></tr>
+      ${S._compassNext.map(r=>`<tr>
+        <td class="mono" style="font-size:11px">${r.container_no||r.cr49f_booking_no||'—'}</td>
+        <td>${r.crcf9_item_japan||'—'}</td>
+        <td style="text-align:right">¥${(r.Amount||0).toLocaleString()}</td>
+      </tr>`).join('')}</table>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════
+// 結果保存
+// ══════════════════════════════════════════
+async function saveResult(){
+  if(!S.lastMatchResult) return;
+  // BUG-6修正: ym4 安全な計算
+  const ym6=S.lastMatchResult.targetMonth; // e.g. 202602
+  const yy=String(Math.floor(ym6/100)%100).padStart(2,'0');
+  const mm=String(ym6%100).padStart(2,'0');
+  const ym4=yy+mm; // e.g. "2602"
+
+  if(!S.rootHandle||!S.currentMonthHandle){
+    // フォルダ未設定 → ダウンロード
+    const json=JSON.stringify({[S.lastMatchResult.packer]:{...S.lastMatchResult,checkedAt:new Date().toISOString()}},null,2);
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([json],{type:'application/json'}));
+    a.download=`LEENAI_確認結果_${ym4}.json`; a.click();
+    alert('フォルダが未設定のためダウンロードしました。'); return;
+  }
+
+  try{
+    const mh=S.currentMonthHandle;
+    let existing={};
+    try{const jh=await mh.getFileHandle('LEENAI_確認結果.json');existing=JSON.parse(await(await jh.getFile()).text());}catch{}
+    existing[S.lastMatchResult.packer]={
+      ...S.lastMatchResult,
+      jaName:VENDOR_MASTER[S.lastMatchResult.packer]?.ja||(S.compassMap[S.lastMatchResult.packer]||'').replace(/^\d+\s+/,''),
+      checkedAt:new Date().toISOString()
+    };    const fh=await mh.getFileHandle('LEENAI_確認結果.json',{create:true});
+    const w=await fh.createWritable(); await w.write(JSON.stringify(existing,null,2)); await w.close();
+    S.dashResults=existing; // DEC-023
+    document.getElementById('saveBtn').textContent='✅ 保存済み';
+    document.getElementById('saveBtn').disabled=true;
+    if(S.selectedMonth) renderDashboard(S.selectedMonth);
+  }catch(e){alert('保存エラー: '+e.message);}
+}
+
+// ══════════════════════════════════════════
+// ユーティリティ
+// ══════════════════════════════════════════
+async function fileToB64(file){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result.split(',')[1]);
+    r.onerror=rej; r.readAsDataURL(file);
+  });
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+function toggleStep(id){const el=document.getElementById(id);if(el.classList.contains('active'))return;el.classList.toggle('open');}
+function activateStep(id){
+  document.querySelectorAll('.step').forEach(s=>s.classList.remove('active','open'));
+  const el=document.getElementById(id); if(el) el.classList.add('active','open');
+}
+function resetMatch(){
+  S._compassFiltered=[];S.invoiceData=null;S.selectedPacker='';S.targetMonth=0;S.lastMatchResult=null;
+  document.getElementById('invoiceResult').style.display='none';
+  document.getElementById('matchResult').innerHTML='';
+  document.getElementById('ocrProgress').style.display='none';
+  document.getElementById('manualPackerBox').style.display='none';
+  document.getElementById('matchBtn').disabled=true;
+  document.getElementById('saveBtn').style.display='none';
+  const banner=document.getElementById('matchVendorBanner');
+  if(banner) banner.style.display='none';
+  ['step2','step3'].forEach(id=>{const el=document.getElementById(id);if(el) el.classList.remove('done','active','open');});
+  document.getElementById('step2-sub').textContent='PDFをアップロード';
+  document.getElementById('step3-sub').textContent='STEP 1〜2 を完了してください';
+  activateStep('step2');
+}
+</script>
+</body>
+</html>
