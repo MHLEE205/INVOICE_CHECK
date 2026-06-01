@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v2.7</title>
+<title>LEENAI 請求書確認ツール v2.8</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ── CSS 변수: 다크 테마 기본 ── */
@@ -126,7 +126,7 @@ tr:hover td{background:rgba(79,142,247,.04);}
 
 <header>
   <div class="logo">LEAN<span>AI</span></div>
-  <div class="version">請求書確認ツール v2.7 (2026-06-01)</div>
+  <div class="version">請求書確認ツール v2.8 (2026-06-01)</div>
   <div style="font-size:10px;font-weight:700;background:rgba(79,142,247,.2);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">E-01</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
@@ -1615,29 +1615,49 @@ async function dvGetAll(path) {
 // COMPASS 仕入データを D365 から取得
 // 参照: COMPASS_MAPPING_MASTER.md § 9 🟢 SYS-E-01 조인 경로
 // crcf9_container_information
-//   → crcf9_work_date, crcf9_n_w(g), crcf9_purchase_price, crcf9_purchase_amount, crcf9_container_no
-//   → _crcf9_booking_id_value → cr49f_bookings → cr49f_booking_no, cr49f_cy_cut, cr49f_etd
-//   → _crcf9_parker_plant_id_value → crcf9_packer_plants → crcf9_packer_id (packer コード)
-// ⚠️ N/W: crcf9_n_w は g 単位 → ÷1,000,000 = MT (Excel 列 Net_Weight は MT)
-// 翌月25日払い計算 (work_date → pay_date)
-function calcPayDate(workDate) {
-  if (!workDate) return null;
-  const y = workDate.getFullYear();
-  const m = workDate.getMonth() + 1; // 翌月
-  return new Date(m === 12 ? y+1 : y, m, 25);
+//   → crcf9_work_date, crcf9_n_w(kg), crcf9_purchase_price, crcf9_purchase_payment_date
+//   → _crcf9_booking_id_value → cr49f_bookings → cr49f_booking_no, cr49f_cy_cut
+//   → _crcf9_parker_plant_id_value → crcf9_packer_plants → crcf9_packer_id
+// ⚠️ N/W: crcf9_n_w は kg 単位 → ÷1,000 = MT
+// ⚠️ Amount: crcf9_purchase_amount は全件null → n_w(kg) × purchase_price で計算
+// 기간 계산 (현재월 기준 -3개월 ~ +1개월)
+function getDateRange() {
+  const now  = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  const to   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const fmt  = d => d.toISOString().split('T')[0];
+  return { from: fmt(from), to: fmt(to) };
 }
 
 async function fetchCompassFromD365() {
   const dashInfo = document.getElementById('dashCompassInfo');
+  if (dashInfo) dashInfo.innerHTML = `<span class="spinner"></span> COMPASS取得中... (直近3ヶ月対象)`;
   try {
-    // ① コンテナ情報を全件取得
-    const ctRows = await dvGetAll(
+    // ① コンテナ情報を期間フィルタで取得 (work_date + pay_date の二重クエリ)
+    const { from, to } = getDateRange();
+    const sel$ = `crcf9_container_informationid,crcf9_container_no,` +
+                 `crcf9_work_date,crcf9_n_w,crcf9_purchase_price,` +
+                 `crcf9_purchase_payment_date,` +
+                 `_crcf9_booking_id_value,_crcf9_parker_plant_id_value`;
+
+    const ctByWork = await dvGetAll(
       `crcf9_container_informations` +
-      `?$select=crcf9_container_informationid,crcf9_container_no,` +
-               `crcf9_work_date,crcf9_n_w,crcf9_purchase_price,crcf9_purchase_amount,` +
-               `_crcf9_booking_id_value,_crcf9_parker_plant_id_value` +
-      `&$top=5000`
+      `?$filter=crcf9_work_date ge ${from}T00:00:00Z and crcf9_work_date le ${to}T23:59:59Z` +
+      `&$select=${sel$}`
     );
+    const ctByPay = await dvGetAll(
+      `crcf9_container_informations` +
+      `?$filter=crcf9_work_date eq null` +
+               ` and crcf9_purchase_payment_date ge ${from}T00:00:00Z` +
+               ` and crcf9_purchase_payment_date le ${to}T23:59:59Z` +
+      `&$select=${sel$}`
+    );
+    const seenIds = new Set();
+    const ctRows = [...ctByWork, ...ctByPay].filter(r => {
+      if (seenIds.has(r.crcf9_container_informationid)) return false;
+      seenIds.add(r.crcf9_container_informationid);
+      return true;
+    });
 
     if (!ctRows.length) throw new Error('コンテナデータが0件です');
 
@@ -1667,50 +1687,28 @@ async function fetchCompassFromD365() {
       (res.value||[]).forEach(p => { plantMap[p.crcf9_packer_plantid] = p.crcf9_packer_id||''; });
     }
 
-    // ④ [NEW] booking GUID → booking_detail → purchase_contract (co_no 取得)
-    const pcMap = {}; // { bkgGuid: { co_no } }
-    for (let i = 0; i < bkgGuids.length; i += 10) {
-      const chunk = bkgGuids.slice(i, i+10);
-      for (const bkgGuid of chunk) {
-        try {
-          const bdData = await dvGet(
-            `cr49f_booking_details` +
-            `?$filter=_cr49f_booking_id_value eq ${bkgGuid}` +
-            `&$select=_cr49f_purchase_contract_id_value&$top=1`
-          );
-          const pcGuid = bdData.value[0]?.['_cr49f_purchase_contract_id_value'];
-          if (!pcGuid) continue;
-          const pc = await dvGet(
-            `cr49f_purchase_contracts(${pcGuid})` +
-            `?$select=cr49f_purchase_contract_no,cr49f_payment_term`
-          );
-          pcMap[bkgGuid] = { co_no: pc.cr49f_purchase_contract_no || '' };
-        } catch { /* 取得失敗は無視 */ }
-      }
-    }
-
-    // ⑤ compassData 形式に変換
+    // ④ compassData 形式に変換
     const toDate = s => s ? new Date(s) : null;
     S.compassData = ctRows.map(r => {
       const bkgGuid   = r['_crcf9_booking_id_value'];
       const plantGuid = r['_crcf9_parker_plant_id_value'];
       const bkg = bkgMap[bkgGuid] || {};
-      const pc  = pcMap[bkgGuid]  || {};
-      const workDate = toDate(r.crcf9_work_date);
+      const nw  = parseFloat(r.crcf9_n_w) || 0;
+      const prc = parseFloat(r.crcf9_purchase_price) || 0;
       return {
         packer:           plantMap[plantGuid] || '',
         container_no:     r.crcf9_container_no || '',
-        work_date:        workDate,
-        pay_date:         calcPayDate(workDate),
-        purchase_price:   parseFloat(r.crcf9_purchase_price) || 0,
-        Net_Weight:       (parseFloat(r.crcf9_n_w) || 0) / 1000000, // g→MT
-        Amount:           parseFloat(r.crcf9_purchase_amount) || 0,
+        work_date:        toDate(r.crcf9_work_date),
+        pay_date:         toDate(r.crcf9_purchase_payment_date),        // ✅ 直接フィールド
+        purchase_price:   prc,
+        Net_Weight:       nw / 1000,                                    // ✅ kg→MT
+        Amount:           Math.round(nw * prc),                         // ✅ kg×¥/kg=¥
         cr49f_booking_no: bkg.cr49f_booking_no || '',
         cr49f_cy_cut:     toDate(bkg.cr49f_cy_cut),
-        purchase_co_no:   pc.co_no || '',
+        purchase_co_no:   '',                                           // v2.8: 생략
         '年月':           0,
       };
-    }).filter(r => r.Amount > 0 || r.purchase_price > 0);
+    }).filter(r => r.purchase_price > 0);
 
     S.compassMap = {}; // D365モードでは帳簿比較シートなし
 
