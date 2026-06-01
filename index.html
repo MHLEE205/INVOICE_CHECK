@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v2.6</title>
+<title>LEENAI 請求書確認ツール v2.7</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ── CSS 변수: 다크 테마 기본 ── */
@@ -126,7 +126,7 @@ tr:hover td{background:rgba(79,142,247,.04);}
 
 <header>
   <div class="logo">LEAN<span>AI</span></div>
-  <div class="version">請求書確認ツール v2.6 (2026-06-01)</div>
+  <div class="version">請求書確認ツール v2.7 (2026-06-01)</div>
   <div style="font-size:10px;font-weight:700;background:rgba(79,142,247,.2);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">E-01</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
@@ -161,7 +161,7 @@ tr:hover td{background:rgba(79,142,247,.04);}
       <div style="font-size:12px;font-weight:600;margin-bottom:2px;">COMPASS データ</div>
       <div class="info-text" id="dashCompassInfo" style="font-size:11px;">COMPASS_仕入_DATA.xlsx を選択してください</div>
     </div>
-    <button class="btn btn-ghost btn-sm" id="d365LoginBtn" onclick="startD365Login()" style="border-color:var(--accent);color:var(--accent);" title="D365から直接データ取得">🔗 D365取得</button>
+    <button class="btn btn-ghost btn-sm" id="d365LoginBtn" onclick="startD365Login()" style="border-color:var(--accent);color:var(--accent);" title="D365から直接データ取得">🔗 COMPASS取得</button>
     <label class="btn btn-ghost btn-sm" style="cursor:pointer;position:relative;">
       Excel
       <input type="file" accept=".xlsx,.xls" style="position:absolute;inset:0;opacity:0;cursor:pointer;" onchange="loadCompass(this.files[0])">
@@ -1619,7 +1619,14 @@ async function dvGetAll(path) {
 //   → _crcf9_booking_id_value → cr49f_bookings → cr49f_booking_no, cr49f_cy_cut, cr49f_etd
 //   → _crcf9_parker_plant_id_value → crcf9_packer_plants → crcf9_packer_id (packer コード)
 // ⚠️ N/W: crcf9_n_w は g 単位 → ÷1,000,000 = MT (Excel 列 Net_Weight は MT)
-// ⚠️ pay_date / purchase_co_no はコンテナテーブルに直接存在しないため今バージョンは省略
+// 翌月25日払い計算 (work_date → pay_date)
+function calcPayDate(workDate) {
+  if (!workDate) return null;
+  const y = workDate.getFullYear();
+  const m = workDate.getMonth() + 1; // 翌月
+  return new Date(m === 12 ? y+1 : y, m, 25);
+}
+
 async function fetchCompassFromD365() {
   const dashInfo = document.getElementById('dashCompassInfo');
   try {
@@ -1660,23 +1667,47 @@ async function fetchCompassFromD365() {
       (res.value||[]).forEach(p => { plantMap[p.crcf9_packer_plantid] = p.crcf9_packer_id||''; });
     }
 
-    // ④ compassData 形式に変換
+    // ④ [NEW] booking GUID → booking_detail → purchase_contract (co_no 取得)
+    const pcMap = {}; // { bkgGuid: { co_no } }
+    for (let i = 0; i < bkgGuids.length; i += 10) {
+      const chunk = bkgGuids.slice(i, i+10);
+      for (const bkgGuid of chunk) {
+        try {
+          const bdData = await dvGet(
+            `cr49f_booking_details` +
+            `?$filter=_cr49f_booking_id_value eq ${bkgGuid}` +
+            `&$select=_cr49f_purchase_contract_id_value&$top=1`
+          );
+          const pcGuid = bdData.value[0]?.['_cr49f_purchase_contract_id_value'];
+          if (!pcGuid) continue;
+          const pc = await dvGet(
+            `cr49f_purchase_contracts(${pcGuid})` +
+            `?$select=cr49f_purchase_contract_no,cr49f_payment_term`
+          );
+          pcMap[bkgGuid] = { co_no: pc.cr49f_purchase_contract_no || '' };
+        } catch { /* 取得失敗は無視 */ }
+      }
+    }
+
+    // ⑤ compassData 形式に変換
     const toDate = s => s ? new Date(s) : null;
     S.compassData = ctRows.map(r => {
-      const bkgGuid  = r['_crcf9_booking_id_value'];
+      const bkgGuid   = r['_crcf9_booking_id_value'];
       const plantGuid = r['_crcf9_parker_plant_id_value'];
       const bkg = bkgMap[bkgGuid] || {};
+      const pc  = pcMap[bkgGuid]  || {};
+      const workDate = toDate(r.crcf9_work_date);
       return {
         packer:           plantMap[plantGuid] || '',
         container_no:     r.crcf9_container_no || '',
-        work_date:        toDate(r.crcf9_work_date),
-        pay_date:         null,   // ⚠️ D365に直接存在しないため未取得 (月判定は work_date で代替)
+        work_date:        workDate,
+        pay_date:         calcPayDate(workDate),
         purchase_price:   parseFloat(r.crcf9_purchase_price) || 0,
         Net_Weight:       (parseFloat(r.crcf9_n_w) || 0) / 1000000, // g→MT
         Amount:           parseFloat(r.crcf9_purchase_amount) || 0,
         cr49f_booking_no: bkg.cr49f_booking_no || '',
         cr49f_cy_cut:     toDate(bkg.cr49f_cy_cut),
-        purchase_co_no:   '',    // ⚠️ 未取得 (購買契約経由で取得可能だが今バージョン省略)
+        purchase_co_no:   pc.co_no || '',
         '年月':           0,
       };
     }).filter(r => r.Amount > 0 || r.purchase_price > 0);
@@ -1698,11 +1729,11 @@ async function fetchCompassFromD365() {
 
     const totalAmt = S.compassData.reduce((s,r)=>s+r.Amount,0);
     if (dashInfo) dashInfo.innerHTML =
-      `<b style="color:var(--ok)">✅ D365取得完了</b> — ${S.compassData.length.toLocaleString()}件 / ${packers.length}社 / ¥${totalAmt.toLocaleString()}`;
+      `<b style="color:var(--ok)">✅ COMPASS取得完了</b> — ${S.compassData.length.toLocaleString()}件 / ${packers.length}社 / ¥${totalAmt.toLocaleString()}`;
 
     if (S.selectedMonth) await renderDashboard(S.selectedMonth);
   } catch(e) {
-    if (dashInfo) dashInfo.innerHTML = `<span style="color:var(--error)">❌ D365取得エラー: ${e.message}</span>`;
+    if (dashInfo) dashInfo.innerHTML = `<span style="color:var(--error)">❌ COMPASS取得エラー: ${e.message}</span>`;
   }
 }
 </script>
