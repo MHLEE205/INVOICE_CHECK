@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v3.4</title>
+<title>LEENAI 請求書確認ツール v3.5</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -146,7 +146,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v3.4</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v3.5</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -156,7 +156,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v3.4 (2026-08-08)</div>
+  <div class="version">請求書確認ツール v3.5 (2026-08-08)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -765,6 +765,7 @@ async function goToMatchPrecision(packer,ym4){
 }
 
 async function _doMatch(packer,ym4){
+  S.isPrecision=true; // v3.5: 精密照合フラグ
   switchTab('match');
   S.selectedPacker=packer;
   S.targetMonth=parseInt('20'+ym4.slice(0,2))*100+parseInt(ym4.slice(2,4));
@@ -804,7 +805,8 @@ async function _doMatch(packer,ym4){
     const vm=VENDOR_MASTER[packer];
     const pattern=vm?.type||'E';
     const summaryOnly=vm?.ocr_mode==='summary';
-    const result=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(pattern,false,summaryOnly), summaryOnly?4000:16000); // v3.3
+    const result=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(pattern,false,summaryOnly), summaryOnly?4000:16000, // v3.5
+      chars=>{fill.style.width=`${Math.min(40+Math.floor(chars/120),94)}%`;status.innerHTML=`<span class="spinner"></span> AI解析中… ${chars.toLocaleString()}字`;});
     fill.style.width='100%';
 
     S.invoiceData=result;
@@ -1000,7 +1002,7 @@ function buildOCRPrompt(pattern,bulkMode,summaryOnly){
 
   // パターン別 items定義
   const itemDefs={
-    'A': `,"items":[{"date":"MM/DD","container_no":"コンテナ番号","booking_no":"BKG No.(なければnull)","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
+    'A': `,"items":[{"container_no":"コンテナ番号","booking_no":"BKGNo(なければnull)","weight_kg":重量kg,"unit_price":単価,"amount":金額}]`, // v3.5: date/item除外
     'B': `,"items":[{"date":"MM/DD","slip_no":"伝票No.","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
     'C': `,"items":[{"date":"MM/DD","co_no":"CO番号(LR-XXXX-XX)","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
     'D': `,"items":[{"item":"品名","weight_kg":合計重量kg,"unit_price":単価¥/kg,"amount":合計金額}]`,
@@ -1045,8 +1047,8 @@ function truncWarnHTML(data){
 // ══════════════════════════════════════════
 // Claude API 呼び出し
 // ══════════════════════════════════════════
-// DEC-021: max_tokens — bulk/summary: 4000, 個別OCR: 16000 (v3.3: 大量明細JSON截断対策)
-async function callClaude(b64, mimeType, prompt, maxTokens=4000){
+// DEC-021: max_tokens — bulk/summary: 4000, 個別OCR: 16000 (v3.5: Streaming対応)
+async function callClaude(b64, mimeType, prompt, maxTokens=4000, onProgress=null){
   const resp=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
     headers:{
@@ -1058,6 +1060,7 @@ async function callClaude(b64, mimeType, prompt, maxTokens=4000){
     body:JSON.stringify({
       model:'claude-sonnet-4-6',
       max_tokens:maxTokens,
+      stream:true,
       messages:[{role:'user',content:[
         {type:'document',source:{type:'base64',media_type:mimeType,data:b64}},
         {type:'text',text:prompt}
@@ -1068,11 +1071,35 @@ async function callClaude(b64, mimeType, prompt, maxTokens=4000){
     const e=await resp.json();
     throw new Error(e.error?.message||`HTTP ${resp.status}`);
   }
-  const data=await resp.json();
-  // v3.4: max_tokens到達はAPIが stop_reason で明示する — 推測せず確定信号で判定する
-  const hitMaxTokens = data.stop_reason === 'max_tokens';
-  const text=data.content.map(c=>c.text||'').join('');
-  const clean=text.replace(/```json|```/g,'').trim();
+  // v3.5: Streaming読み取り — 最初のtokenが届いた時点でプログレス更新開始
+  const reader=resp.body.getReader();
+  const dec=new TextDecoder();
+  let buf='',fullText='',stop_reason='';
+  while(true){
+    const {done,value}=await reader.read();
+    if(done) break;
+    buf+=dec.decode(value,{stream:true});
+    const lines=buf.split('\n');
+    buf=lines.pop()||'';
+    for(const line of lines){
+      if(!line.startsWith('data: ')) continue;
+      const raw=line.slice(6).trim();
+      if(!raw||raw==='[DONE]') continue;
+      try{
+        const ev=JSON.parse(raw);
+        if(ev.type==='content_block_delta'&&ev.delta?.type==='text_delta'){
+          fullText+=ev.delta.text;
+          if(onProgress) onProgress(fullText.length);
+        }
+        if(ev.type==='message_delta'&&ev.delta?.stop_reason){
+          stop_reason=ev.delta.stop_reason;
+        }
+      }catch{}
+    }
+  }
+  // v3.4: max_tokens到達はAPIが stop_reason で明示する
+  const hitMaxTokens=stop_reason==='max_tokens';
+  const clean=fullText.replace(/```json|```/g,'').trim();
   // v3.3: JSON repair — max_tokens超過で切断されたJSONを自動補完
   function repairJSON(s){
     let inStr=false,esc=false;
@@ -1086,25 +1113,21 @@ async function callClaude(b64, mimeType, prompt, maxTokens=4000){
       if(c==='{'||c==='[')stack.push(c==='{'?'}':']');
       else if(c==='}'||c===']'){if(stack.length)stack.pop();}
     }
-    // 末尾の不完全なキー・値・カンマを除去してから閉じる
     let t=s.replace(/,\s*$/,'').replace(/[,:]\s*$/,'');
     return t+stack.reverse().join('');
   }
-  // v3.4: 明細が欠落した可能性を必ず呼び出し元へ伝える (注意事項 §最重要ルール: 推測で「問題なし」と判断しない)
+  // v3.4: 明細が欠落した可能性を必ず呼び出し元へ伝える
   const mark=(obj,repaired)=>{
     if(obj&&typeof obj==='object'){
-      obj._truncated = hitMaxTokens || repaired;
-      obj._truncReason = hitMaxTokens ? 'max_tokens' : (repaired ? 'json_repair' : '');
+      obj._truncated=hitMaxTokens||repaired;
+      obj._truncReason=hitMaxTokens?'max_tokens':(repaired?'json_repair':'');
     }
     return obj;
   };
-
   try{return mark(JSON.parse(clean),false);}
   catch{
-    // ① まず {} 全体を抜き出して試みる — 末尾が切れている場合はここで明細が脱落する
     const m=clean.match(/\{[\s\S]*\}/);
     if(m){try{return mark(JSON.parse(m[0]),true);}catch{}}
-    // ② JSON repair で切断補完を試みる
     try{return mark(JSON.parse(repairJSON(m?m[0]:clean)),true);}catch{}
     throw new Error('JSON解析失敗 (出力が途中で切れている可能性があります)');
   }
@@ -1114,6 +1137,7 @@ async function callClaude(b64, mimeType, prompt, maxTokens=4000){
 // PDF 手動ロード
 // ══════════════════════════════════════════
 async function loadInvoicePDF(file){
+  S.isPrecision=false; // v3.5: 通常ロードはフラグリセット
   if(!file) return;
   if(!S.compassData.length){alert('COMPASSデータが未取得です。ダッシュボードの「🔄 再取得」を実行してください');return;}
   if(!S.apiKey){alert('APIキーを入力してください');return;}
@@ -1135,7 +1159,8 @@ async function loadInvoicePDF(file){
 
   try{
     const pattern=VENDOR_MASTER[filenameCode]?.type||'E';
-    const parsed=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(pattern,false), 16000); // v3.3
+    const parsed=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(pattern,false), 16000, // v3.5
+      chars=>{fill.style.width=`${Math.min(50+Math.floor(chars/120),94)}%`;status.innerHTML=`<span class="spinner"></span> AI解析中… ${chars.toLocaleString()}字`;});
     fill.style.width='100%';
     S.invoiceData=parsed;
 
@@ -1273,9 +1298,15 @@ function runMatch(){
       <div class="hint">当月COMPASS ¥${compassTotal.toLocaleString()} + 翌月分 ¥${nextMonthAmt.toLocaleString()} = 請求書 ¥${invoiceTotal.toLocaleString()}</div>
     </div>`;
   }else{
+    // 不一致: 常に明細リポート (精密/通常問わず)
     const items=S.invoiceData?.items||[];
-    html+=items.length?renderDetailMatch(items)
-      :`<div class="manual-input mt8"><label>明細照合不可</label><div class="hint">差額: ¥${diff.toLocaleString()} / OCRに明細がありません</div></div>`;
+    html+=items.length?renderDetailMatch(items):renderCompassOnlyReport();
+  }
+  // v3.5: 精密照合時はOK/翌月含むでも明細確認リポートを追加表示
+  if(S.isPrecision&&(isOk||isNext)){
+    const items=S.invoiceData?.items||[];
+    html+=`<div style="margin-top:16px;padding:6px 0 4px;border-top:1px solid var(--border);font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.5px;">📋 明細確認リポート</div>`;
+    html+=items.length?renderDetailMatch(items):renderCompassOnlyReport();
   }
   if(S._compassNext?.length&&!isNext) html+=renderNextMonthWarn();
 
@@ -1431,6 +1462,29 @@ function renderDetailMatch(items){
   return html+'</table></div>';
 }
 
+// v3.5: COMPASSデータのみで単方向リポート (items取得不可時)
+function renderCompassOnlyReport(){
+  const rows=S._compassFiltered||[];
+  if(!rows.length) return `<div class="manual-input mt8"><label>明細照合不可</label><div class="hint">OCRに明細がなく、COMPASSデータもありません</div></div>`;
+  let html=`<div class="manual-input mt8" style="border-color:var(--warn)">
+    <label style="color:var(--warn)">⚠️ 請求書明細 取得不可 — COMPASSデータのみ表示</label>
+    <div class="hint">OCR明細が取得できませんでした。請求書を手動で確認してください。</div>
+  </div>
+  <div class="tbl-wrap mt8"><table>
+    <tr><th>コンテナ/BKG</th><th>品名</th><th style="text-align:right">重量(t)</th><th style="text-align:right">単価</th><th style="text-align:right">COMPASS金額</th></tr>`;
+  for(const r of rows){
+    const key=r.container_no||r.cr49f_booking_no||r.purchase_co_no||'—';
+    html+=`<tr>
+      <td class="mono" style="font-size:11px">${key}</td>
+      <td>${r.crcf9_item_japan||'—'}</td>
+      <td style="text-align:right">${r.Net_Weight!=null?r.Net_Weight.toFixed(3):'—'}</td>
+      <td style="text-align:right">${r.purchase_price?'¥'+r.purchase_price:'—'}</td>
+      <td style="text-align:right">¥${(r.Amount||0).toLocaleString()}</td>
+    </tr>`;
+  }
+  return html+'</table></div>';
+}
+
 function renderNextMonthWarn(){
   return `<div class="manual-input mt8" style="border-color:var(--warn)">
     <label style="color:var(--warn)">🔔 翌月請求候補 (${S._compassNext.length}件)</label>
@@ -1499,7 +1553,7 @@ function activateStep(id){
   const el=document.getElementById(id); if(el) el.classList.add('active','open');
 }
 function resetMatch(){
-  S._compassFiltered=[];S.invoiceData=null;S.selectedPacker='';S.targetMonth=0;S.lastMatchResult=null;
+  S._compassFiltered=[];S.invoiceData=null;S.selectedPacker='';S.targetMonth=0;S.lastMatchResult=null;S.isPrecision=false; // v3.5
   document.getElementById('invoiceResult').style.display='none';
   document.getElementById('matchResult').innerHTML='';
   document.getElementById('ocrProgress').style.display='none';
