@@ -3,8 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v3.1</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<title>LEENAI 請求書確認ツール v3.2</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -67,7 +66,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .dash-table .num{text-align:right;font-variant-numeric:tabular-nums;}
 .sbadge{display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;}
 .sbadge-ok{background:rgba(34,197,94,.15);color:var(--ok);}
-.sbadge-error{background:rgba(239,68,68,.15);color:var(--error);}
+.sbadge-error{background:rgba(239,68,68,.15);color:var(--danger);}
 .sbadge-none{background:var(--surface2);color:var(--text2);}
 .sbadge-warn{background:rgba(245,158,11,.15);color:var(--warn);}
 .sbadge-next{background:rgba(245,158,11,.2);color:#f59e0b;border:1px solid rgba(245,158,11,.4);}
@@ -120,7 +119,7 @@ input:focus,select:focus{outline:none;border-color:var(--accent);}
 .sc .sl{color:var(--text2);font-size:11px;margin-bottom:3px;}.sc .sv{font-size:16px;font-weight:700;}
 .match-banner{border-radius:10px;padding:16px 20px;display:flex;align-items:center;gap:14px;font-size:14px;font-weight:600;}
 .match-banner.ok{background:rgba(34,197,94,.12);border:1px solid var(--ok);color:var(--ok);}
-.match-banner.error{background:rgba(239,68,68,.12);border:1px solid var(--error);color:var(--error);}
+.match-banner.error{background:rgba(239,68,68,.12);border:1px solid var(--error);color:var(--danger);}
 .match-banner .detail{color:var(--text2);font-size:12px;font-weight:400;margin-top:2px;}
 .tbl-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:12px;}
@@ -129,9 +128,9 @@ td{padding:7px 10px;border-bottom:1px solid rgba(46,51,80,.5);vertical-align:mid
 tr:hover td{background:var(--surface3);}
 .tag{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;}
 .tag-ok{background:rgba(34,197,94,.15);color:var(--ok);}
-.tag-error{background:rgba(239,68,68,.15);color:var(--error);}
+.tag-error{background:rgba(239,68,68,.15);color:var(--danger);}
 .tag-warn{background:rgba(245,158,11,.15);color:var(--warn);}
-.diff-text{color:var(--error);font-size:11px;}
+.diff-text{color:var(--danger);font-size:11px;}
 .mono{font-family:'Consolas',monospace;}
 .manual-input{background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:12px 14px;margin-top:10px;}
 .manual-input label{color:var(--accent);}
@@ -146,7 +145,7 @@ tr:hover td{background:var(--surface3);}
 <!-- ══ ログインゲート (注意事項 v1.8 §16 / D-03 と統一) ══ -->
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v3.1</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v3.2</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -156,7 +155,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v3.1 (2026-08-08)</div>
+  <div class="version">請求書確認ツール v3.2 (2026-08-08)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -188,13 +187,15 @@ tr:hover td{background:var(--surface3);}
     <span style="font-size:18px;">📊</span>
     <div style="flex:1;">
       <div style="font-size:12px;font-weight:600;margin-bottom:2px;">COMPASS データ</div>
-      <div class="info-text" id="dashCompassInfo" style="font-size:11px;">COMPASS_仕入_DATA.xlsx を選択してください</div>
+      <div class="info-text" id="dashCompassInfo" style="font-size:11px;">COMPASSから取得中...</div>
     </div>
-    <button class="btn btn-ghost btn-sm" id="d365LoginBtn" onclick="startD365Login()" style="border-color:var(--accent);color:var(--accent);" title="D365から直接データ取得">🔗 COMPASS取得</button>
-    <label class="btn btn-ghost btn-sm" style="cursor:pointer;position:relative;">
-      Excel
-      <input type="file" accept=".xlsx,.xls" style="position:absolute;inset:0;opacity:0;cursor:pointer;" onchange="loadCompass(this.files[0])">
-    </label>
+    <span style="font-size:11px;color:var(--text2);">対象期間</span>
+    <select id="dvRangeSel" onchange="fetchCompassFromD365()" style="font-size:12px;padding:4px 8px;">
+      <option value="3">直近3ヶ月</option>
+      <option value="6">直近6ヶ月</option>
+      <option value="12">直近12ヶ月</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" id="d365LoginBtn" onclick="fetchCompassFromD365()" style="border-color:var(--accent);color:var(--accent);" title="COMPASS(Dataverse)から再取得">🔄 再取得</button>
   </div>
 
   <div class="month-bar" id="monthBar">
@@ -217,14 +218,10 @@ tr:hover td{background:var(--surface3);}
     <div class="step-hdr" onclick="toggleStep('step1')">
       <div class="step-num">1</div>
       <div class="step-title">COMPASS データ</div>
-      <div class="step-sub" id="step1-sub">ダッシュボードで読込済みなら自動反映</div>
+      <div class="step-sub" id="step1-sub">ログイン時にCOMPASSから自動取得</div>
     </div>
     <div class="step-body">
-      <div class="drop-zone" id="compassDrop">
-        <input type="file" accept=".xlsx,.xls" onchange="loadCompass(this.files[0])">
-        <div class="drop-icon">📊</div>
-        <div class="drop-text"><b>COMPASS_仕入_DATA.xlsx</b> をドロップ</div>
-      </div>
+      <div class="info-text">COMPASS (Dataverse) から直接取得しています。期間変更・再取得はダッシュボードから行ってください。</div>
       <div id="compassInfo" style="display:none;" class="info-text mt8"></div>
     </div>
   </div>
@@ -373,8 +370,8 @@ const S = {
   apiKey:'',
   rootHandle:null,
   selectedMonth:'',        // YYMM (フォルダ名から抽出)
-  compassData:[],          // sheetToRows済み仕入データ
-  compassMap:{},           // {packerCode: '10004 兼子'} 帳簿比較
+  compassData:[],          // Dataverse から取得した仕入データ
+  compassMap:{},           // {packerCode: '兼子'} cr49f_packers より取得
   selectedPacker:'',
   targetMonth:0,           // YYYYMM
   invoiceData:null,
@@ -517,84 +514,9 @@ function isValidYM(s){
 }
 
 // ══════════════════════════════════════════
-// COMPASS READ (DEC-010: raw:true + 手動日付変換)
+// COMPASS データは Dataverse 直接呼び出しに一元化 (v3.2)
+// Excel(SheetJS) 経由の読込は廃止 → fetchCompassFromD365() を参照
 // ══════════════════════════════════════════
-function sheetToRows(sheet){
-  const rows=XLSX.utils.sheet_to_json(sheet,{defval:null,raw:true});
-  rows.forEach(r=>{
-    // 日付フィールド正規化
-    ['work_date','pay_date','date','cr49f_cy_cut'].forEach(col=>{
-      const v=r[col];
-      if(v instanceof Date){r[col]=v;}
-      else if(typeof v==='number'&&v>0){
-        // Excelシリアル日付→JS Date
-        try{const d=XLSX.SSF.parse_date_code(v);r[col]=d?new Date(d.y,d.m-1,d.d):null;}
-        catch{r[col]=new Date(Math.round((v-25569)*86400*1000));}
-      }else if(typeof v==='string'&&v.trim()){
-        const cleaned=v.replace(/(\d{4})[\/](\d{1,2})[\/](\d{1,2}).*/,'$1-$2-$3').replace(/ .*$/,'');
-        const pd=new Date(cleaned); r[col]=isNaN(pd.getTime())?null:pd;
-      }else{r[col]=null;}
-    });
-    // 数値フィールド正規化
-    ['Amount','Amount_tax','purchase_price','Net_Weight'].forEach(col=>{r[col]=parseFloat(r[col])||0;});
-  });
-  return rows;
-}
-
-async function loadCompass(file){
-  if(!file)return;
-  try{
-    const buf=await file.arrayBuffer();
-    // DEC-010: cellDates:true はWORKBOOKレベルで指定、sheet_to_jsonはraw:true
-    const wb=XLSX.read(buf,{type:'array',cellDates:true});
-    const ws1=wb.Sheets[wb.SheetNames[0]];
-    S.compassData=sheetToRows(ws1);
-
-    // 帳簿比較シート読込
-    S.compassMap={};
-    const ws2=wb.Sheets['帳簿比較'];
-    if(ws2){
-      XLSX.utils.sheet_to_json(ws2,{header:1}).slice(1).forEach(r=>{
-        if(r[0]&&r[1]) S.compassMap[r[0].trim()]=r[1].trim();
-      });
-    }
-
-    // 業者セレクト更新 (照合タブ)
-    const sel=document.getElementById('packerSel');
-    const packers=[...new Set(S.compassData.map(r=>r.packer))].filter(Boolean).sort();
-    // VENDOR_MASTER未登録のpacker も追加
-    sel.innerHTML='<option value="">-- 業者を選択 --</option>';
-    // VENDOR_MASTERを先に
-    Object.entries(VENDOR_MASTER).forEach(([code,v])=>{
-      const ja=S.compassMap[code]||v.ja;
-      sel.innerHTML+=`<option value="${code}">[${v.type}] ${v.ja} — ${code}</option>`;
-    });
-    // VENDOR_MASTERにないpackerも追加
-    packers.forEach(p=>{
-      if(!VENDOR_MASTER[p]){
-        const ja=(S.compassMap[p]||'').replace(/^\d+\s+/,'')||p;
-        sel.innerHTML+=`<option value="${p}">[?] ${ja} — ${p}</option>`;
-      }
-    });
-
-    // UI更新
-    // BUG-1修正: compassDropはmatchタブにしか存在しないのでnullガード
-    const drop=document.getElementById('compassDrop');
-    if(drop){drop.classList.add('file-loaded');drop.querySelector('.drop-text').innerHTML=`<b style="color:var(--ok)">✓ ${file.name}</b> (${S.compassData.length.toLocaleString()}件)`;}
-    const cinfo=document.getElementById('compassInfo');
-    if(cinfo){cinfo.style.display='block';cinfo.innerHTML=`✓ <b>${S.compassData.length.toLocaleString()}件</b> / ${packers.length}社`;}
-    const step1sub=document.getElementById('step1-sub');
-    if(step1sub) step1sub.textContent=`${file.name} 読込済み (${S.compassData.length.toLocaleString()}件)`;
-    const step1=document.getElementById('step1');
-    if(step1){step1.classList.add('done');}
-
-    const dashInfo=document.getElementById('dashCompassInfo');
-    if(dashInfo) dashInfo.innerHTML=`<b style="color:var(--ok)">✓ ${file.name}</b> — ${S.compassData.length.toLocaleString()}件 / ${packers.length}社`;
-
-    if(S.selectedMonth) await renderDashboard(S.selectedMonth);
-    activateStep('step2');
-  }catch(e){alert('COMPASS読込エラー: '+e.message);}
-}
 
 // ══════════════════════════════════════════
 // 月判定 (DEC-010: Date객체前提)
@@ -734,7 +656,7 @@ async function renderDashboard(ym4){
   if(!Object.keys(packerMap).length&&!Object.keys(pdfFiles).length){
     content.innerHTML=`<div class="empty-state"><div class="ei">📭</div>
       <div>${formatYM4(ym4)}のデータがありません<br>
-      <span style="font-size:11px;">COMPASSデータを読み込むか、PDFをフォルダに配置してください</span></div></div>`;
+      <span style="font-size:11px;">COMPASSデータを取得するか、PDFをフォルダに配置してください</span></div></div>`;
     return;
   }
 
@@ -752,7 +674,7 @@ async function renderDashboard(ym4){
     <div class="sc"><div class="sl">対象業者数</div><div class="sv">${totalPacker}社</div></div>
     <div class="sc"><div class="sl">COMPASS合計(税抜)</div><div class="sv">¥${totalCompass.toLocaleString()}</div></div>
     <div class="sc"><div class="sl">✅ 確認完了</div><div class="sv" id="sum-ok" style="color:var(--ok)">${totalConf}社</div></div>
-    <div class="sc"><div class="sl">❌ 差異あり</div><div class="sv" id="sum-err" style="color:var(--error)">${totalErr}社</div></div>
+    <div class="sc"><div class="sl">❌ 差異あり</div><div class="sv" id="sum-err" style="color:var(--danger)">${totalErr}社</div></div>
     <div class="sc"><div class="sl">⬜ 未確認</div><div class="sv" id="sum-unconf" style="color:var(--text2)">${totalPacker-totalConf-totalErr}社</div></div>
   </div>
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
@@ -765,8 +687,8 @@ async function renderDashboard(ym4){
       <div style="color:var(--text2);font-size:11px;margin-bottom:4px;" id="bulkProgressTxt"></div>
       <div class="progress-bar"><div class="fill" id="bulkFill"></div></div>
     </div>
-    ${!S.apiKey?'<span style="color:var(--error);font-size:11px;">⚠️ APIキー未設定</span>':
-      !S.compassData.length?'<span style="color:var(--warn);font-size:11px;">⚠️ COMPASSデータ未読込</span>':
+    ${!S.apiKey?'<span style="color:var(--danger);font-size:11px;">⚠️ APIキー未設定</span>':
+      !S.compassData.length?'<span style="color:var(--warn);font-size:11px;">⚠️ COMPASSデータ未取得</span>':
       pdfCount===0?'<span style="color:var(--text2);font-size:11px;">PDFファイルなし</span>':''}
   </div>
   <div class="dash-table-wrap"><table class="dash-table">
@@ -792,7 +714,7 @@ async function renderDashboard(ym4){
       invTxt=s.invoiceTotal?`¥${s.invoiceTotal.toLocaleString()}`:'—';
       if(s.status==='ok'){badge='<span class="sbadge sbadge-ok">✅ 完了</span>';diffTxt='<span style="color:var(--ok)">¥0</span>';}
       else if(s.status==='next_month'){badge='<span class="sbadge sbadge-next">🟡 翌月含む</span>';diffTxt=`<span style="color:var(--warn)">+¥${(s.nextMonthAmt||0).toLocaleString()}</span>`;}
-      else if(s.status==='error'){badge='<span class="sbadge sbadge-error">❌ 差異</span>';diffTxt=`<span style="color:var(--error)">¥${(s.diff||0).toLocaleString()}</span>`;}
+      else if(s.status==='error'){badge='<span class="sbadge sbadge-error">❌ 差異</span>';diffTxt=`<span style="color:var(--danger)">¥${(s.diff||0).toLocaleString()}</span>`;}
       else{badge='<span class="sbadge sbadge-warn">⚠️ 確認中</span>';diffTxt='—';}
     }else{invTxt='—';badge='<span class="sbadge sbadge-none">⬜ 未確認</span>';diffTxt='—';}
 
@@ -820,7 +742,7 @@ async function renderDashboard(ym4){
   }
   html+='</table></div>';
 
-  if(!S.compassData.length) html+=`<div class="info-text mt8">⚠️ COMPASSデータ未読込のため金額は表示されていません。</div>`;
+  if(!S.compassData.length) html+=`<div class="info-text mt8">⚠️ COMPASSデータ未取得のため金額は表示されていません。</div>`;
   if(unmapped.length) html+=`<div class="info-text mt8" style="color:var(--text3);">⚪ 業者特定できなかったPDF (${unmapped.length}件): ${unmapped.join(', ')}</div>`;
   content.innerHTML=html;
 }
@@ -830,14 +752,14 @@ async function renderDashboard(ym4){
 // ══════════════════════════════════════════
 async function goToMatch(packer,ym4){
   if(!S.apiKey){alert('APIキーを設定してください');return;}
-  if(!S.compassData.length){alert('COMPASSデータを読み込んでください');return;}
+  if(!S.compassData.length){alert('COMPASSデータが未取得です。ダッシュボードの「🔄 再取得」を実行してください');return;}
   await _doMatch(packer,ym4);
 }
 
 // 精密照合 (差異ありの業者用: フルOCR)
 async function goToMatchPrecision(packer,ym4){
   if(!S.apiKey){alert('APIキーを設定してください');return;}
-  if(!S.compassData.length){alert('COMPASSデータを読み込んでください');return;}
+  if(!S.compassData.length){alert('COMPASSデータが未取得です。ダッシュボードの「🔄 再取得」を実行してください');return;}
   await _doMatch(packer,ym4);
 }
 
@@ -906,7 +828,7 @@ function stopBulkMatch(){S._bulkStop=true;}
 async function runBulkMatch(){
   if(!S.pdfFiles||!S.currentMonthHandle){alert('フォルダを選択してください');return;}
   if(!S.apiKey){alert('APIキーを入力してください');return;}
-  if(!S.compassData.length){alert('COMPASSデータを読み込んでください');return;}
+  if(!S.compassData.length){alert('COMPASSデータが未取得です。ダッシュボードの「🔄 再取得」を実行してください');return;}
   const pdfEntries=Object.entries(S.pdfFiles);
   if(!pdfEntries.length){alert('PDFファイルがありません');return;}
 
@@ -1113,7 +1035,7 @@ async function callClaude(b64, mimeType, prompt, maxTokens=4000){
 // ══════════════════════════════════════════
 async function loadInvoicePDF(file){
   if(!file) return;
-  if(!S.compassData.length){alert('先にCOMPASS Excelを読み込んでください');return;}
+  if(!S.compassData.length){alert('COMPASSデータが未取得です。ダッシュボードの「🔄 再取得」を実行してください');return;}
   if(!S.apiKey){alert('APIキーを入力してください');return;}
 
   const drop=document.getElementById('invoiceDrop');
@@ -1258,7 +1180,7 @@ function runMatch(){
       <div>合計照合: ${label}</div>
       <div class="detail">請求書(税抜) ¥${invoiceTotal.toLocaleString()} / COMPASS当月 ¥${compassTotal.toLocaleString()}
       ${isNext?` / COMPASS翌月 ¥${compassNextTotal.toLocaleString()} <b style="color:var(--warn)">→ 翌月分¥${nextMonthAmt.toLocaleString()}を含む</b>`:''}
-      ${!isOk&&!isNext?` → 差額 <b style="color:var(--error)">¥${diff.toLocaleString()}</b>`:''}</div>
+      ${!isOk&&!isNext?` → 差額 <b style="color:var(--danger)">¥${diff.toLocaleString()}</b>`:''}</div>
     </div>
   </div>`;
 
@@ -1676,23 +1598,29 @@ async function dvGetAll(path) {
 // ⚠️ Amount: crcf9_purchase_amount は全件null → n_w(kg) × purchase_price で計算
 // 기간 계산 (현재월 기준 -3개월 ~ +1개월)
 function getDateRange() {
+  // v3.2: Excel廃止に伴い、対象期間をUIから選択可能に (既定 直近3ヶ月)
+  const sel    = document.getElementById('dvRangeSel');
+  const months = parseInt(sel?.value) || 3;
   const now  = new Date();
-  const from = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+  const from = new Date(now.getFullYear(), now.getMonth() - months, 1);
   const to   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   const fmt  = d => d.toISOString().split('T')[0];
-  return { from: fmt(from), to: fmt(to) };
+  return { from: fmt(from), to: fmt(to), months };
 }
 
 async function fetchCompassFromD365() {
   const dashInfo = document.getElementById('dashCompassInfo');
-  if (dashInfo) dashInfo.innerHTML = `<span class="spinner"></span> COMPASS取得中... (直近3ヶ月対象)`;
+  // v3.2: 未認証/トークン切れ時は再ログインへ (Excel フォールバックは廃止)
+  if (!dvAccessToken) { startD365Login(); return; }
+  const { from, to, months } = getDateRange();
+  if (dashInfo) dashInfo.innerHTML = `<span class="spinner"></span> COMPASS取得中... (直近${months}ヶ月対象)`;
   try {
     // ① コンテナ情報を期間フィルタで取得 (work_date + pay_date の二重クエリ)
-    const { from, to } = getDateRange();
     const sel$ = `crcf9_container_informationid,crcf9_container_no,` +
                  `crcf9_work_date,crcf9_n_w,crcf9_purchase_price,` +
                  `crcf9_purchase_payment_date,` +
-                 `_crcf9_booking_id_value,_crcf9_parker_plant_id_value`;
+                 `_crcf9_booking_id_value,_crcf9_parker_plant_id_value,` +
+                 `_crcf9_purchase_contract_id_value`;   // v3.2: CO番号照合用
 
     const ctByWork = await dvGetAll(
       `crcf9_container_informations` +
@@ -1741,6 +1669,19 @@ async function fetchCompassFromD365() {
       (res.value||[]).forEach(p => { plantMap[p.crcf9_packer_plantid] = p.crcf9_packer_id||''; });
     }
 
+    // ③-b 購買契約 GUID → 契約番号 (CO番号) 一括取得  ※v3.2: Excel의 purchase_co_no 대체
+    const coGuids = [...new Set(ctRows.map(r=>r['_crcf9_purchase_contract_id_value']).filter(Boolean))];
+    const coMap = {};
+    for (let i = 0; i < coGuids.length; i += 20) {
+      const chunk = coGuids.slice(i, i+20);
+      const filter = chunk.map(g=>`cr49f_purchase_contractid eq ${g}`).join(' or ');
+      const res = await dvGet(
+        `cr49f_purchase_contracts?$filter=${filter}` +
+        `&$select=cr49f_purchase_contractid,cr49f_purchase_contract_no`
+      );
+      (res.value||[]).forEach(c => { coMap[c.cr49f_purchase_contractid] = c.cr49f_purchase_contract_no||''; });
+    }
+
     // ④ compassData 形式に変換
     const toDate = s => s ? new Date(s) : null;
     S.compassData = ctRows.map(r => {
@@ -1759,12 +1700,25 @@ async function fetchCompassFromD365() {
         Amount:           Math.round(nw * prc),                         // ✅ kg×¥/kg=¥
         cr49f_booking_no: bkg.cr49f_booking_no || '',
         cr49f_cy_cut:     toDate(bkg.cr49f_cy_cut),
-        purchase_co_no:   '',                                           // v2.8: 생략
+        purchase_co_no:   coMap[r['_crcf9_purchase_contract_id_value']] || '',  // ✅ v3.2: 購買契約番号
         '年月':           0,
       };
     }).filter(r => r.purchase_price > 0);
 
-    S.compassMap = {}; // D365モードでは帳簿比較シートなし
+    // ⑤ Packer マスター (コード → 日本語正式名) ※v3.2: Excel「帳簿比較」シート의 대체
+    S.compassMap = {};
+    try {
+      const packerRows = await dvGetAll(
+        `cr49f_packers?$select=cr49f_packer,cr49f_packer_name`
+      );
+      packerRows.forEach(p => {
+        if (p.cr49f_packer && p.cr49f_packer_name) {
+          S.compassMap[String(p.cr49f_packer).trim()] = String(p.cr49f_packer_name).trim();
+        }
+      });
+    } catch(e) {
+      console.warn('Packerマスター取得失敗 (業者名照合は VENDOR_MASTER のみで実行):', e.message);
+    }
 
     // 업자 select 업데이트
     const packers = [...new Set(S.compassData.map(r=>r.packer))].filter(Boolean).sort();
@@ -1775,7 +1729,10 @@ async function fetchCompassFromD365() {
         sel.innerHTML += `<option value="${code}">[${v.type}] ${v.ja} — ${code}</option>`;
       });
       packers.forEach(p => {
-        if (!VENDOR_MASTER[p]) sel.innerHTML += `<option value="${p}">[?] ${p}</option>`;
+        if (!VENDOR_MASTER[p]) {
+          const ja = (S.compassMap[p]||'').replace(/^\d+\s+/,'') || p;   // v3.2: Packerマスター名
+          sel.innerHTML += `<option value="${p}">[?] ${ja} — ${p}</option>`;
+        }
       });
     }
 
@@ -1785,7 +1742,7 @@ async function fetchCompassFromD365() {
 
     if (S.selectedMonth) await renderDashboard(S.selectedMonth);
   } catch(e) {
-    if (dashInfo) dashInfo.innerHTML = `<span style="color:var(--error)">❌ COMPASS取得エラー: ${e.message}</span>`;
+    if (dashInfo) dashInfo.innerHTML = `<span style="color:var(--danger)">❌ COMPASS取得エラー: ${e.message}</span>`;
   }
 }
 </script>
