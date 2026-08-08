@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v3.2</title>
+<title>LEENAI 請求書確認ツール v3.4</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -145,7 +145,8 @@ tr:hover td{background:var(--surface3);}
 <!-- ══ ログインゲート (注意事項 v1.8 §16 / D-03 と統一) ══ -->
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v3.2</div>
+  <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v3.4</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -155,7 +156,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v3.2 (2026-08-08)</div>
+  <div class="version">請求書確認ツール v3.4 (2026-08-08)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -803,7 +804,7 @@ async function _doMatch(packer,ym4){
     const vm=VENDOR_MASTER[packer];
     const pattern=vm?.type||'E';
     const summaryOnly=vm?.ocr_mode==='summary';
-    const result=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(pattern,false,summaryOnly), summaryOnly?4000:8000);
+    const result=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(pattern,false,summaryOnly), summaryOnly?4000:16000); // v3.3
     fill.style.width='100%';
 
     S.invoiceData=result;
@@ -849,34 +850,45 @@ async function runBulkMatch(){
   let done=0,okCount=0,errCount=0,skipCount=0;
   const total=pdfEntries.length;
 
-  for(const [packer,{name,handle}] of pdfEntries){
-    if(S._bulkStop) break;
-    const vm=VENDOR_MASTER[packer];
-    const ja=vm?.ja||packer;
-    bulkTxt.textContent=`処理中 ${done+1}/${total}: ${ja}`;
+  // ══ v3.4: 直列 → 同時実行 (47社を1件ずつ待つのをやめる) ══
+  // BULK_CONCURRENCY: 429が頻発するなら 2〜3 に下げる / 余裕があれば 6〜8 に上げる
+  const BULK_CONCURRENCY = 4;
+  const BULK_MAX_ATTEMPTS = 4;   // 429/529 は スキップせず 5s→10s→20s で再試行
+
+  const refreshProgress=()=>{
+    bulkTxt.textContent=`処理中 ${done}/${total} (同時${BULK_CONCURRENCY}件)`;
     bulkFill.style.width=`${(done/total)*100}%`;
+  };
+
+  // 429(リクエスト過多) / 529(混雑) は一時的なもの → 待って再試行する
+  async function callClaudeRetry(b64,mime,prompt,packer){
+    let wait=5000;
+    for(let attempt=1;attempt<=BULK_MAX_ATTEMPTS;attempt++){
+      try{
+        return await callClaude(b64,mime,prompt);
+      }catch(e){
+        const msg=e.message||'';
+        const retryable=msg.includes('429')||msg.includes('529');
+        if(!retryable||attempt===BULK_MAX_ATTEMPTS||S._bulkStop) throw e;
+        updateRowStatus(packer,`待機中 ${attempt}/${BULK_MAX_ATTEMPTS-1}`,'processing','—',null);
+        await sleep(wait);
+        wait*=2;
+      }
+    }
+  }
+
+  async function processPacker(packer,name,handle){
+    const vm=VENDOR_MASTER[packer];
     updateRowStatus(packer,'処理中','processing','—',null);
 
     try{
       const file=await handle.getFile();
       const b64=await fileToB64(file);
 
-      // DEC-021: max_tokens 4000
       // ocr_mode:'summary' (OOMOTO等) → 合計のみ、明細不要
       const useOCRSummary = vm?.ocr_mode === 'summary';
-      let parsed;
-      try{
-        parsed=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(vm?.type||'E', true, useOCRSummary));
-      }catch(e){
-        if(e.message&&(e.message.includes('429')||e.message.includes('529'))){
-          updateRowStatus(packer,'待機中','processing','—',null);
-          await sleep(15000);
-          skipCount++; done++;
-          updateRowStatus(packer,'スキップ','warn','—',null);
-          continue;
-        }
-        throw e;
-      }
+      const parsed=await callClaudeRetry(b64,file.type||'application/pdf',
+        buildOCRPrompt(vm?.type||'E', true, useOCRSummary), packer);
 
       const targetYM=parseInt('20'+S.currentYM4.slice(0,2))*100+parseInt(S.currentYM4.slice(2,4));
       const filtered=S.compassData.filter(r=>r.packer===packer&&getHanteiYM(r)===targetYM);
@@ -910,12 +922,29 @@ async function runBulkMatch(){
 
     }catch(e){
       console.error(packer,e);
-      updateRowStatus(packer,'OCR失敗','warn','—',null);
+      const msg=e.message||'';
+      const label=(msg.includes('429')||msg.includes('529'))?'混雑のため未処理':'OCR失敗';
+      updateRowStatus(packer,label,'warn','—',null);
       skipCount++;
     }
     done++;
-    if(!S._bulkStop&&done<total) await sleep(2000);
+    refreshProgress();
   }
+
+  // 同時実行プール — 先頭から順に取り出して BULK_CONCURRENCY 本で処理する
+  let cursor=0;
+  refreshProgress();
+  async function worker(){
+    while(!S._bulkStop){
+      const i=cursor++;
+      if(i>=total) return;
+      const [packer,{name,handle}]=pdfEntries[i];
+      await processPacker(packer,name,handle);
+    }
+  }
+  await Promise.all(
+    Array.from({length:Math.min(BULK_CONCURRENCY,total)},()=>worker())
+  );
 
   // 結果保存
   try{
@@ -998,9 +1027,25 @@ function buildOCRPrompt(pattern,bulkMode,summaryOnly){
 }
 
 // ══════════════════════════════════════════
+// v3.4: 明細切断の警告バナー (照合結果の差額を誤って原因特定しないための表示)
+// ══════════════════════════════════════════
+function truncWarnHTML(data){
+  if(!data||!data._truncated) return '';
+  const why = data._truncReason==='max_tokens'
+    ? 'OCR出力が上限(max_tokens)に達して途中で切れました。'
+    : 'OCR出力のJSONが途中で切れていたため自動補完しました。';
+  return `<div style="background:var(--surface3);border:1px solid var(--warn);border-left:4px solid var(--warn);
+       border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px;line-height:1.7;color:var(--text);">
+    <b style="color:var(--warn)">⚠️ 明細が一部欠落している可能性があります</b><br>
+    ${why} 合計金額は表紙から取得するため、<b>OK / NG の判定には影響ありません。</b><br>
+    <span style="color:var(--text2)">差額が出てコンテナ別に確認する場合のみ注意 — ここで欠けた明細を「請求書に無い」と誤認しないでください。</span>
+  </div>`;
+}
+
+// ══════════════════════════════════════════
 // Claude API 呼び出し
 // ══════════════════════════════════════════
-// DEC-021: max_tokens — bulk/summary: 4000, 個別OCR: 8000 (大量明細業者対応)
+// DEC-021: max_tokens — bulk/summary: 4000, 個別OCR: 16000 (v3.3: 大量明細JSON截断対策)
 async function callClaude(b64, mimeType, prompt, maxTokens=4000){
   const resp=await fetch('https://api.anthropic.com/v1/messages',{
     method:'POST',
@@ -1024,10 +1069,45 @@ async function callClaude(b64, mimeType, prompt, maxTokens=4000){
     throw new Error(e.error?.message||`HTTP ${resp.status}`);
   }
   const data=await resp.json();
+  // v3.4: max_tokens到達はAPIが stop_reason で明示する — 推測せず確定信号で判定する
+  const hitMaxTokens = data.stop_reason === 'max_tokens';
   const text=data.content.map(c=>c.text||'').join('');
   const clean=text.replace(/```json|```/g,'').trim();
-  try{return JSON.parse(clean);}
-  catch{const m=clean.match(/\{[\s\S]*\}/);if(m)return JSON.parse(m[0]);throw new Error('JSON解析失敗');}
+  // v3.3: JSON repair — max_tokens超過で切断されたJSONを自動補完
+  function repairJSON(s){
+    let inStr=false,esc=false;
+    const stack=[];
+    for(let i=0;i<s.length;i++){
+      const c=s[i];
+      if(esc){esc=false;continue;}
+      if(c==='\\'&&inStr){esc=true;continue;}
+      if(c==='"'){inStr=!inStr;continue;}
+      if(inStr)continue;
+      if(c==='{'||c==='[')stack.push(c==='{'?'}':']');
+      else if(c==='}'||c===']'){if(stack.length)stack.pop();}
+    }
+    // 末尾の不完全なキー・値・カンマを除去してから閉じる
+    let t=s.replace(/,\s*$/,'').replace(/[,:]\s*$/,'');
+    return t+stack.reverse().join('');
+  }
+  // v3.4: 明細が欠落した可能性を必ず呼び出し元へ伝える (注意事項 §最重要ルール: 推測で「問題なし」と判断しない)
+  const mark=(obj,repaired)=>{
+    if(obj&&typeof obj==='object'){
+      obj._truncated = hitMaxTokens || repaired;
+      obj._truncReason = hitMaxTokens ? 'max_tokens' : (repaired ? 'json_repair' : '');
+    }
+    return obj;
+  };
+
+  try{return mark(JSON.parse(clean),false);}
+  catch{
+    // ① まず {} 全体を抜き出して試みる — 末尾が切れている場合はここで明細が脱落する
+    const m=clean.match(/\{[\s\S]*\}/);
+    if(m){try{return mark(JSON.parse(m[0]),true);}catch{}}
+    // ② JSON repair で切断補完を試みる
+    try{return mark(JSON.parse(repairJSON(m?m[0]:clean)),true);}catch{}
+    throw new Error('JSON解析失敗 (出力が途中で切れている可能性があります)');
+  }
 }
 
 // ══════════════════════════════════════════
@@ -1055,7 +1135,7 @@ async function loadInvoicePDF(file){
 
   try{
     const pattern=VENDOR_MASTER[filenameCode]?.type||'E';
-    const parsed=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(pattern,false), 8000);
+    const parsed=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(pattern,false), 16000); // v3.3
     fill.style.width='100%';
     S.invoiceData=parsed;
 
@@ -1115,6 +1195,7 @@ function showInvoiceResult(data){
   div.style.display='block';
   const items=data.items||[];
   div.innerHTML=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;">
+    ${truncWarnHTML(data)}
     <div id="compassSummaryInResult"></div>
     <div class="summary-row">
       <div class="sc"><div class="sl">当月売上(税抜)</div><div class="sv">¥${(data.total_before_tax||0).toLocaleString()}</div></div>
@@ -1288,7 +1369,7 @@ function renderDetailMatch(items){
     document.getElementById('step3-sub').textContent='✅ 前月支払済含む OK';
   }
 
-  let html=`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:12px;">
+  let html=`${truncWarnHTML(S.invoiceData)}<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-top:12px;">
     <div class="summary-row">
       <div class="sc ok"><div class="sl">✅ OK</div><div class="sv">${okCnt}件</div></div>
       <div class="sc error"><div class="sl">❌ ERROR</div><div class="sv">${errCnt}件</div></div>
