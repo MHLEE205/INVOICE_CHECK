@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v3.0</title>
+<title>LEENAI 請求書確認ツール v3.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
@@ -146,18 +146,17 @@ tr:hover td{background:var(--surface3);}
 <!-- ══ ログインゲート (注意事項 v1.8 §16 / D-03 と統一) ══ -->
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v3.0</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v3.1</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
-  <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">COMPASSデータを直接取得するには<br>COMPASSアカウントでのログインが必要です</div>
+  <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
-  <button onclick="closeLoginGate()" style="background:none;border:none;color:var(--text3);font-size:11px;cursor:pointer;text-decoration:underline;padding:4px;">Excelファイルのみで利用する</button>
   <div id="gateStatus" style="font-size:11px;color:var(--text2);height:18px;"></div>
 </div>
 
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v3.0 (2026-08-08)</div>
+  <div class="version">請求書確認ツール v3.1 (2026-08-08)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -1514,7 +1513,7 @@ function resetMatch(){
 // ══════════════════════════════════════════
 // テーマ切替 (DARK → LIGHT → LEENAI → FOCUS 4段階循環 / 注意事項 v1.8 §13)
 // ══════════════════════════════════════════
-// ログインゲートを閉じる (COMPASS認証完了時 / Excelのみ利用時)
+// ログインゲートを閉じる (COMPASS認証完了時のみ — スキップ不可)
 function closeLoginGate() {
   const gate = document.getElementById('loginGate');
   if (gate) gate.style.display = 'none';
@@ -1601,8 +1600,9 @@ async function handleD365Callback() {
   history.replaceState({}, '', DV_REDIRECT);
   sessionStorage.removeItem('dv_cv');
 
-  closeLoginGate();   // 認証コード受領 → ゲート解除
   const dashInfo = document.getElementById('dashCompassInfo');
+  const gs = document.getElementById('gateStatus');
+  if (gs) gs.textContent = 'D365認証中...';
   if (dashInfo) dashInfo.innerHTML = '<span class="spinner"></span> D365認証中...';
 
   try {
@@ -1621,10 +1621,13 @@ async function handleD365Callback() {
     if (!res.ok) throw new Error('トークン取得失敗: ' + (await res.text()));
     const data = await res.json();
     dvAccessToken = data.access_token;
+    closeLoginGate();   // トークン取得成功時のみゲート解除
     if (dashInfo) dashInfo.innerHTML = '<span style="color:var(--ok)">✅ D365認証完了 — データ取得中...</span>';
     await fetchCompassFromD365();
   } catch(e) {
-    if (dashInfo) dashInfo.innerHTML = `<span style="color:var(--error)">❌ D365認証エラー: ${e.message}</span>`;
+    // 認証失敗時はゲートを開けたまま、ゲート上にエラー表示 (ログイン必須)
+    if (gs) gs.innerHTML = `<span style="color:var(--danger)">❌ 認証エラー: ${e.message}</span>`;
+    if (dashInfo) dashInfo.innerHTML = `<span style="color:var(--danger)">❌ D365認証エラー: ${e.message}</span>`;
   }
 }
 
