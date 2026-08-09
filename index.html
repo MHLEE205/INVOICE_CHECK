@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v5.1</title>
+<title>LEENAI 請求書確認ツール v5.2</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.1</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.2</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v5.1 (2026-08-09)</div>
+  <div class="version">請求書確認ツール v5.2 (2026-08-09)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -479,9 +479,12 @@ window.onload = async () => {
     const o=document.createElement('option'); o.value=code;
     o.textContent=`${v.ja} [${v.type}型] — ${code}`; sel.appendChild(o);
   });
+  // v5.2: OAuthコールバックを最優先で処理する
+  //   (旧: フォルダ復元の後 → 途中で例外や待機が起きるとログインが完了しなかった)
+  if (location.search.includes('code=') || location.search.includes('error=')) {
+    await handleD365Callback();
+  }
   await tryRestoreFolder();
-  // D365 OAuth コールバック処理
-  if (location.search.includes('code=')) await handleD365Callback();
 };
 function saveApiKey(){
   const k=document.getElementById('apiKeyInput').value.trim();
@@ -2330,6 +2333,27 @@ const DV_API         = 'https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
 // ⚠️ REDIRECT_URI는 하드코딩 고정 (동적 생성 절대 금지)
 const DV_REDIRECT    = 'https://mhlee205.github.io/INVOICE_CHECK/';
 
+// v5.2: PKCE検証値の保存 (localStorage + 10分失効。使用直後に削除)
+const DV_CV_KEY = 'leenai_dv_cv_v1';
+function dvSaveVerifier(v){
+  try{ localStorage.setItem(DV_CV_KEY, JSON.stringify({v, t:Date.now()})); }
+  catch{ sessionStorage.setItem('dv_cv', v); }   // 保存できない環境向けの保険
+}
+function dvLoadVerifier(){
+  try{
+    const raw=localStorage.getItem(DV_CV_KEY);
+    if(raw){
+      const o=JSON.parse(raw);
+      if(o && o.v && (Date.now()-o.t) < 10*60*1000) return o.v;
+    }
+  }catch{}
+  return sessionStorage.getItem('dv_cv') || null;   // 旧方式の残りも拾う
+}
+function dvClearVerifier(){
+  try{ localStorage.removeItem(DV_CV_KEY); }catch{}
+  sessionStorage.removeItem('dv_cv');
+}
+
 let dvAccessToken = null;
 // v4.1: トークンは60〜90分で失効する。offline_access で受け取る refresh_token を
 //       保持し、失効前/401時に自動で再発行する (再ログイン不要にする)
@@ -2413,7 +2437,10 @@ async function startD365Login() {
   if (gs) gs.textContent = 'COMPASSへ接続中...';
   const verifier  = await generateCodeVerifier();
   const challenge = await generateCodeChallenge(verifier);
-  sessionStorage.setItem('dv_cv', verifier);
+  // v5.2: sessionStorage はタブ単位のため、別タブ復帰やタブ復元で検証値が消え
+  //   「?code= が付いたまま何も起きない」状態になっていた → localStorage に変更。
+  //   使い捨て・使用直後に削除・10分で失効。
+  dvSaveVerifier(verifier);
 
   const params = new URLSearchParams({
     client_id:             DV_CLIENT_ID,
@@ -2431,12 +2458,28 @@ async function startD365Login() {
 async function handleD365Callback() {
   const params = new URLSearchParams(location.search);
   const code    = params.get('code');
-  const verifier = sessionStorage.getItem('dv_cv');
-  if (!code || !verifier) return;
+
+  // v5.2: Entra側がエラーを返した場合も黙って終わらせない
+  const oaErr = params.get('error');
+  if (oaErr) {
+    history.replaceState({}, '', DV_REDIRECT);
+    openLoginGate(`❌ ログインが拒否されました: ${params.get('error_description')||oaErr}`);
+    return;
+  }
+  if (!code) return;
+
+  const verifier = dvLoadVerifier();
+  if (!verifier) {
+    // v5.2: 旧実装はここで無言 return し、URLに ?code= が残ったまま
+    //   ログイン画面から進めなくなっていた。原因と対処を必ず表示する。
+    history.replaceState({}, '', DV_REDIRECT);
+    openLoginGate('ログイン情報の確認に失敗しました（別タブ/再読込で認証情報が失われた可能性）。もう一度ログインしてください。');
+    return;
+  }
 
   // URLをクリア
   history.replaceState({}, '', DV_REDIRECT);
-  sessionStorage.removeItem('dv_cv');
+  dvClearVerifier();
 
   const dashInfo = document.getElementById('dashCompassInfo');
   const gs = document.getElementById('gateStatus');
