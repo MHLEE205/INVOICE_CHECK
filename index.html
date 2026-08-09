@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v5.2</title>
+<title>LEENAI 請求書確認ツール v5.3</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.2</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.3</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v5.2 (2026-08-09)</div>
+  <div class="version">請求書確認ツール v5.3 (2026-08-09)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -462,15 +462,20 @@ const DB_NAME='leenai_invoice_v1', DB_STORE='settings';
 // INIT
 // ══════════════════════════════════════════
 window.onload = async () => {
-  initCdPackerSelect(); // v3.8
-  initCdPaymSelect(); // v5.0
+  // v5.3: 初期化の失敗でログイン処理まで巻き添えにしないよう個別にガードする
+  const safe = (label, fn) => { try{ fn(); }catch(e){ console.error('init失敗:', label, e); } };
+
+  // OAuthコールバックは何よりも先に処理する
+  if (location.search.includes('code=') || location.search.includes('error=')) {
+    const gs0 = document.getElementById('gateStatus');
+    if (gs0) gs0.textContent = '認証中...';
+    try{ await handleD365Callback(); }catch(e){ console.error('OAuth callback失敗', e); }
+  }
+
+  safe('initCdPackerSelect', initCdPackerSelect); // v3.8
+  safe('initCdPaymSelect', initCdPaymSelect); // v5.0
   // テーマ復元
   updateThemeBtn(document.documentElement.getAttribute('data-theme') || 'dark');
-  // OAuth リダイレクト復帰中はゲートに状態表示
-  if (location.search.includes('code=')) {
-    const gs = document.getElementById('gateStatus');
-    if (gs) gs.textContent = '認証中...';
-  }
   const k = localStorage.getItem('leenai_apikey_v1')||'';
   S.apiKey=k; document.getElementById('apiKeyInput').value=k; updateApiDot();
   // 照合タブの業者セレクト初期化
@@ -479,11 +484,6 @@ window.onload = async () => {
     const o=document.createElement('option'); o.value=code;
     o.textContent=`${v.ja} [${v.type}型] — ${code}`; sel.appendChild(o);
   });
-  // v5.2: OAuthコールバックを最優先で処理する
-  //   (旧: フォルダ復元の後 → 途中で例外や待機が起きるとログインが完了しなかった)
-  if (location.search.includes('code=') || location.search.includes('error=')) {
-    await handleD365Callback();
-  }
   await tryRestoreFolder();
 };
 function saveApiKey(){
@@ -1689,8 +1689,10 @@ function initCdPackerSelect(){
       opt.value = code; opt.textContent = `${v.ja}（${code}）`;
       sel.appendChild(opt);
     });
-  // v4.2: 既定は空欄(全期間)。支払状況=未払いのみ が主フィルタなので月で切る必要はない。
-  document.getElementById('cd-month').value = '';
+  // v5.3: v5.0で「対象月(cd-month)」は「支払月(cd-paym-select)」に置き換わり、
+  //   要素自体が存在しない。旧参照が残っていたため null.value で例外となり、
+  //   window.onload が途中で止まって OAuthコールバックが処理されず
+  //   URLに ?code= が残ったままログインできなくなっていた。→ 参照を削除。
 }
 
 // v5.0: 支払月 ドロップダウン生成 (直近6ヶ月 + 支払日未登録)
@@ -2056,7 +2058,7 @@ function downloadCompassDetailCSV(){
   const rows=cdSelectedRows();   // v4.2: 選択したCTのみ出力
   if(!rows.length){ showCdStatus('warn','CTが選択されていません'); return; }
   const code=window._cdMeta?.packerCode||'';
-  const ym=document.getElementById('cd-month').value;
+  const ym=document.getElementById('cd-paym-select')?.value||'';   // v5.3: cd-month廃止
   const header='日付,区分,営業所,CT番号,CO番号,品目,重量(kg),単価(¥/kg),金額(¥)';
   const lines=rows.map(r=>[
     r.dateDisp,
