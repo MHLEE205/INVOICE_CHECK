@@ -1897,11 +1897,12 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
     </tr>`;
   }
 
+  // v4.2.1: 合計行は「選択分」を表示する (チェックを外すと即座に減る)
   html+=`</tbody><tfoot><tr style="background:var(--surface2);font-weight:700;">
-    <td colspan="7" style="text-align:right;padding-right:12px;">計 ${cts.length}件${noPriceCnt?`<span style="color:var(--warn);font-weight:400;font-size:11px;"> (うち単価未設定 ${noPriceCnt}件 — 金額に未計上)</span>`:''}</td>
-    <td style="text-align:right">${totalKg.toLocaleString()}</td>
+    <td colspan="7" style="text-align:right;padding-right:12px;" id="cd-foot-label"></td>
+    <td style="text-align:right" id="cd-foot-kg"></td>
     <td></td>
-    <td style="text-align:right">¥${totalAmt.toLocaleString()}</td>
+    <td style="text-align:right" id="cd-foot-amt"></td>
   </tr></tfoot></table>`;
 
   const wrap=document.getElementById('cd-table-wrap');
@@ -1909,7 +1910,8 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
   wrap.style.display='block';
 
   const summary=document.getElementById('cd-summary');
-  summary.innerHTML=`${packerCode} — ${cts.length}件 / 合計重量 ${totalKg.toLocaleString()} kg / 合計金額 ¥${totalAmt.toLocaleString()}`
+  summary.innerHTML=`${packerCode} — 取得した全件: ${cts.length}件 / ${totalKg.toLocaleString()} kg / ¥${totalAmt.toLocaleString()}`
+    + `<span style="color:var(--text3)">（下の合計は選択分）</span>`
     + (noPriceCnt?`<span style="color:var(--warn)"> ／ ⚠️ 単価未設定 ${noPriceCnt}件は金額に含まれていません</span>`:'');
   summary.style.display='block';
   document.getElementById('cd-csv-btn').style.display='';
@@ -1948,6 +1950,15 @@ function updateCdSelection(){
   const kg  = sel.reduce((s,r)=>s+(r.nwKg||0),0);
   const amt = sel.reduce((s,r)=>s+(r.amt||0),0);
   const noPrice = sel.filter(r=>r.amt==null).length;
+
+  // v4.2.1: 表下部の合計行も選択分に同期
+  const fl=document.getElementById('cd-foot-label');
+  const fk=document.getElementById('cd-foot-kg');
+  const fa=document.getElementById('cd-foot-amt');
+  if(fl) fl.innerHTML=`選択 ${sel.length}件`
+    + (noPrice?`<span style="color:var(--warn);font-weight:400;font-size:11px;"> (うち単価未設定 ${noPrice}件 — 金額に未計上)</span>`:'');
+  if(fk) fk.textContent=kg.toLocaleString();
+  if(fa) fa.textContent='¥'+amt.toLocaleString();
 
   const info=document.getElementById('cd-sel-info');
   if(info) info.innerHTML=`選択 ${sel.length}件 / ${kg.toLocaleString()} kg / <span style="color:var(--accent)">¥${amt.toLocaleString()}</span>`
