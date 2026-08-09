@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v3.9</title>
+<title>LEENAI 請求書確認ツール v4.1</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v3.9</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v4.1</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v3.9 (2026-08-08)</div>
+  <div class="version">請求書確認ツール v4.1 (2026-08-09)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -303,7 +303,7 @@ tr:hover td{background:var(--surface3);}
 <div class="tab-body" id="body-cd">
 <div class="tab-content">
 
-  <div class="step done">
+  <div class="step done open">
     <div class="step-hdr">
       <div class="step-num">📊</div>
       <div class="step-title">COMPASS 仕入明細</div>
@@ -311,7 +311,7 @@ tr:hover td{background:var(--surface3);}
     </div>
     <div class="step-body">
 
-      <!-- v3.9: 使い方ガイド -->
+      <!-- v4.0: 使い方ガイド -->
       <div style="font-size:12px;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:12px;line-height:1.7;">
         📌 <b>使い方</b>：COMPASSログイン後、① 業者を選択 → ② 対象月を選択 → ③ 🔍 取得 をクリック<br>
         <span style="color:var(--text3);">※ ダッシュボードのデータ読込は不要です。ログイン後すぐに照会できます。</span>
@@ -582,11 +582,32 @@ function getHanteiYM(row){
   const prevYM=ym=>{const y=Math.floor(ym/100),m=ym%100;return m===1?(y-1)*100+12:y*100+(m-1);};
   // ① work_date → work_date の年月 (リニアがトラック手配)
   const wd=toYM(row.work_date); if(wd) return wd;
-  // ② pay_date → pay_date の前月 (業者自社トラック. cy_cut不使用)
+  // ② pay_date → pay_date の前月 (業者自社トラック)
   const pd=toYM(row.pay_date); if(pd) return prevYM(pd);
-  // ③ 年月 (ATD基準、最終手段)
-  return row['年月']||0;
+  // ③ v4.1: cy_cut → 作業日の推定値
+  //    支払前は pay_date が null のことが多く、業者によっては work_date も未記入。
+  //    その場合 ①②がどちらも効かず、旧実装では 年月=0 となり
+  //    「どの月にも属さないCT」として照合から丸ごと消えていた（COMPASS合計が過少になる）。
+  //    支払は作業から2ヶ月を超えないため、cy_cut は作業時期の妥当な近似として使える。
+  //    ※ pay_date がある場合は②が優先されるので、注意事項§8の趣旨（cy_cutで月を断定しない）は維持。
+  const cy=toYM(row.cr49f_cy_cut); if(cy){ row._ymEstimated=true; return cy; }
+  // v4.1: 旧④「年月(ATD基準)」を削除。
+  //   これはExcel時代の列で D365 には存在せず、v3.2のExcel廃止以降は
+  //   常に 0 が入る死んだ分岐だった。判定材料は ①②③ がすべて。
+  return 0;
 }
+// v4.1: cy_cut で月を推定したCTがあれば照合結果に明示する
+//       (作業日・支払日が未記入のCT — 旧実装では照合から消えていた分)
+function estimatedNote(){
+  const rows=S._compassFiltered||[];
+  const est=rows.filter(r=>r._ymEstimated);
+  if(!est.length) return '';
+  const amt=est.reduce((s,r)=>s+(r.Amount||0),0);
+  return `<div style="font-size:12px;color:var(--warn);margin-top:4px;">`
+    +`🔶 このうち ${est.length}件 (¥${amt.toLocaleString()}) は作業日・支払日が未記入のため CY CUT から月を推定しています。`
+    +`差異がある場合はこの${est.length}件を優先して確認してください。</div>`;
+}
+
 function nextMonth(ym){const y=Math.floor(ym/100),m=ym%100;return m===12?(y+1)*100+1:y*100+(m+1);}
 function formatYM(ym){return `${Math.floor(ym/100)}年${ym%100}月`;}
 
@@ -1480,6 +1501,7 @@ function renderDetailMatch(items){
       ${prevPaid.length?`<div class="sc"><div class="sl">⚪ 前月支払済</div><div class="sv" style="color:var(--text2)">${prevPaid.length}件</div></div>`:''}
     </div>
     ${isPrevPaidOK?`<div style="font-size:12px;color:var(--ok);margin-top:4px;">✅ 前月支払済み(¥${prevPaidTotal.toLocaleString()})を除くと請求書と一致 — 担当者確認不要</div>`:''}
+    ${estimatedNote()}
   </div>
   <div class="tbl-wrap mt8"><table>
     <tr><th>状態</th><th>識別キー</th><th>品名</th>
@@ -1653,7 +1675,7 @@ function showCdStatus(type, msg){
 }
 
 async function fetchCompassDetail(){
-  // v3.9: COMPASS未ログインチェック
+  // v4.0: COMPASS未ログインチェック
   if(!dvAccessToken){ showCdStatus('warn','⚠️ COMPASSにログインしてから取得してください。ログイン画面はページ再読込で表示されます。'); return; }
   const code = document.getElementById('cd-packer-select').value;
   if(!code){ showCdStatus('warn','業者を選択してください'); return; }
@@ -1679,12 +1701,13 @@ async function fetchCompassDetail(){
 
     // ── Step 2: CO番号 一覧
     showCdStatus('info','<span class="spinner"></span> 契約一覧取得中...');
-    const coRes = await dvGet(
+    // v4.1: $top=500 で打ち切られると当月の契約が欠落するため全件取得に変更
+    const contracts = await dvGetAll(
       `cr49f_purchase_contracts?$filter=_cr49f_packer_id_value eq ${pkGuid}`+
-      `&$select=cr49f_purchase_contractid,cr49f_purchase_contract_no&$top=500`
+      `&$select=cr49f_purchase_contractid,cr49f_purchase_contract_no`+
+      `&$orderby=cr49f_purchase_contractid`
     );
-    const contracts = coRes.value||[];
-    if(!contracts.length){ showCdStatus('warn','該当月の契約データなし'); return; }
+    if(!contracts.length){ showCdStatus('warn',`この業者の契約データがCOMPASSにありません (${code})。※月の条件ではありません`); return; }
     const contractMap={};
     contracts.forEach(c=>{contractMap[c.cr49f_purchase_contractid]=c.cr49f_purchase_contract_no;});
     const coGuids = contracts.map(c=>c.cr49f_purchase_contractid);
@@ -1701,11 +1724,11 @@ async function fetchCompassDetail(){
       const batch=coGuids.slice(i,i+BATCH);
       const coF=batch.map(g=>`_crcf9_purchase_contract_id_value eq ${g}`).join(' or ');
       // 作業日あり
-      const r1=await dvGet(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date ge ${fromStr} and crcf9_work_date le ${toStr}&$select=${ctSel}&$expand=${ctExp}&$top=500`);
+      const r1=await dvGetAll(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date ge ${fromStr} and crcf9_work_date le ${toStr}&$select=${ctSel}&$expand=${ctExp}`);
       // 作業日null
-      const r2=await dvGet(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date eq null&$select=${ctSel}&$expand=${ctExp}&$top=500`);
-      workCTs.push(...(r1.value||[]));
-      nullCTs.push(...(r2.value||[]));
+      const r2=await dvGetAll(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date eq null&$select=${ctSel}&$expand=${ctExp}`);
+      workCTs.push(...r1);
+      nullCTs.push(...r2);
     }
 
     // ── Step 3.5: 作業日null → cy_cut でフィルタ
@@ -1715,8 +1738,8 @@ async function fetchCompassDetail(){
       for(let i=0;i<bkGuids.length;i+=20){
         const batch=bkGuids.slice(i,i+20);
         const bkF=batch.map(g=>`cr49f_bookingid eq ${g}`).join(' or ');
-        const bkRes=await dvGet(`cr49f_bookings?$filter=${bkF}&$select=cr49f_bookingid,cr49f_cy_cut&$top=100`);
-        (bkRes.value||[]).forEach(b=>{bkMap[b.cr49f_bookingid]=b.cr49f_cy_cut;});
+        const bkRows=await dvGetAll(`cr49f_bookings?$filter=${bkF}&$select=cr49f_bookingid,cr49f_cy_cut`);
+        bkRows.forEach(b=>{bkMap[b.cr49f_bookingid]=b.cr49f_cy_cut;});
       }
       const fromD=new Date(y,m-1,1);
       const toD=new Date(y,m,0,23,59,59);
@@ -1741,12 +1764,12 @@ async function fetchCompassDetail(){
     for(let i=0;i<usedCoGuids.length;i+=BATCH){
       const batch=usedCoGuids.slice(i,i+BATCH);
       const coF=batch.map(g=>`_cr49f_purchase_contract_id_value eq ${g}`).join(' or ');
-      const dRes=await dvGet(
+      const dRows=await dvGetAll(
         `cr49f_purchase_details?$filter=${coF}`+
         `&$select=cr49f_price,_cr49f_purchase_contract_id_value,_cr49f_item_id_value`+
-        `&$expand=cr49f_item_id($select=cr49f_item,crcf9_item_japan)&$top=500`
+        `&$expand=cr49f_item_id($select=cr49f_item,crcf9_item_japan)`
       );
-      (dRes.value||[]).forEach(d=>{
+      dRows.forEach(d=>{
         const key=`${d._cr49f_purchase_contract_id_value}__${d._cr49f_item_id_value}`;
         priceMap[key]={
           price: d.cr49f_price,
@@ -1775,7 +1798,7 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
   });
   cts.sort((a,b)=>a._dateVal.localeCompare(b._dateVal));
 
-  let totalKg=0, totalAmt=0, rows=[];
+  let totalKg=0, totalAmt=0, noPriceCnt=0, rows=[];
 
   let html=`<table>
   <thead><tr style="background:var(--surface2);">
@@ -1810,7 +1833,10 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
     const price = pd?.price??null;
     const nwKg  = ct.crcf9_n_w||0;
     const amt   = price!=null ? Math.round(nwKg*price) : null;
-    if(price!=null){ totalKg+=nwKg; totalAmt+=amt; }
+    // v4.1: 重量は単価の有無に関わらず常に加算する
+    //       (旧: 単価未設定のCTは重量まで合計から抜けていて件数と合わなかった)
+    totalKg += nwKg;
+    if(price!=null){ totalAmt+=amt; } else { noPriceCnt++; }
 
     rows.push({dateDisp,badge,plant,ctNo,coNo,itemName,price,nwKg,amt});
 
@@ -1830,7 +1856,7 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
   }
 
   html+=`</tbody><tfoot><tr style="background:var(--surface2);font-weight:700;">
-    <td colspan="6" style="text-align:right;padding-right:12px;">計 ${cts.length}件</td>
+    <td colspan="6" style="text-align:right;padding-right:12px;">計 ${cts.length}件${noPriceCnt?`<span style="color:var(--warn);font-weight:400;font-size:11px;"> (うち単価未設定 ${noPriceCnt}件 — 金額に未計上)</span>`:''}</td>
     <td style="text-align:right">${totalKg.toLocaleString()}</td>
     <td></td>
     <td style="text-align:right">¥${totalAmt.toLocaleString()}</td>
@@ -1841,7 +1867,8 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
   wrap.style.display='block';
 
   const summary=document.getElementById('cd-summary');
-  summary.textContent=`${packerCode} — ${cts.length}件 / 合計重量 ${totalKg.toLocaleString()} kg / 合計金額 ¥${totalAmt.toLocaleString()}`;
+  summary.innerHTML=`${packerCode} — ${cts.length}件 / 合計重量 ${totalKg.toLocaleString()} kg / 合計金額 ¥${totalAmt.toLocaleString()}`
+    + (noPriceCnt?`<span style="color:var(--warn)"> ／ ⚠️ 単価未設定 ${noPriceCnt}件は金額に含まれていません</span>`:'');
   summary.style.display='block';
   document.getElementById('cd-csv-btn').style.display='';
 
@@ -1899,6 +1926,14 @@ function closeLoginGate() {
   if (gate) gate.style.display = 'none';
 }
 
+// v4.1: セッション切れ時にログイン画面へ戻す (ページ再読込は不要)
+function openLoginGate(msg) {
+  const gate = document.getElementById('loginGate');
+  if (gate) gate.style.display = 'flex';
+  const gs = document.getElementById('gateStatus');
+  if (gs && msg) gs.innerHTML = `<span style="color:var(--warn)">${msg}</span>`;
+}
+
 function toggleTheme() {
   const html = document.documentElement;
   const current = html.getAttribute('data-theme') || 'dark';
@@ -1936,6 +1971,69 @@ const DV_API         = 'https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
 const DV_REDIRECT    = 'https://mhlee205.github.io/INVOICE_CHECK/';
 
 let dvAccessToken = null;
+// v4.1: トークンは60〜90分で失効する。offline_access で受け取る refresh_token を
+//       保持し、失効前/401時に自動で再発行する (再ログイン不要にする)
+let dvRefreshToken = null;
+let dvTokenExpiry  = 0;   // epoch ms — この時刻を過ぎたら再発行
+
+function dvSetToken(data){
+  dvAccessToken = data.access_token;
+  if(data.refresh_token) dvRefreshToken = data.refresh_token;
+  // expires_in(秒) から5分の余裕を引く
+  dvTokenExpiry = Date.now() + (((data.expires_in||3600) - 300) * 1000);
+}
+
+async function dvRefreshAccessToken(){
+  if(!dvRefreshToken) return false;
+  try{
+    const body = new URLSearchParams({
+      client_id:     DV_CLIENT_ID,
+      grant_type:    'refresh_token',
+      refresh_token: dvRefreshToken,
+      scope:         DV_SCOPE + ' offline_access',
+    });
+    const res = await fetch(
+      `https://login.microsoftonline.com/${DV_TENANT_ID}/oauth2/v2.0/token`,
+      { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body }
+    );
+    if(!res.ok){ console.warn('token refresh失敗', res.status); return false; }
+    dvSetToken(await res.json());
+    return true;
+  }catch(e){ console.warn('token refresh例外', e); return false; }
+}
+
+// 期限切れ間近なら先に再発行しておく
+async function dvEnsureToken(){
+  if(!dvAccessToken) return false;
+  if(Date.now() < dvTokenExpiry) return true;
+  return await dvRefreshAccessToken();
+}
+
+function dvHeaders(){
+  return {
+    'Authorization': `Bearer ${dvAccessToken}`,
+    'OData-MaxVersion': '4.0',
+    'OData-Version': '4.0',
+    'Accept': 'application/json',
+  };
+}
+
+// 401 が返ったら1度だけ再発行して再試行する共通fetch
+async function dvFetch(url){
+  await dvEnsureToken();
+  let res = await fetch(url, { headers: dvHeaders() });
+  if(res.status===401 && await dvRefreshAccessToken()){
+    res = await fetch(url, { headers: dvHeaders() });
+  }
+  if(res.status===401){
+    dvAccessToken=null; dvRefreshToken=null; dvTokenExpiry=0;
+    openLoginGate('セッションが切れました。再ログインしてください。');
+    const e=new Error('セッションが切れました。再ログインしてください。');
+    e.sessionExpired=true;
+    throw e;
+  }
+  return res;
+}
 
 // PKCE ヘルパー
 async function generateCodeVerifier() {
@@ -1999,8 +2097,7 @@ async function handleD365Callback() {
       { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body }
     );
     if (!res.ok) throw new Error('トークン取得失敗: ' + (await res.text()));
-    const data = await res.json();
-    dvAccessToken = data.access_token;
+    dvSetToken(await res.json());   // v4.1: refresh_token / expires_in も保持
     closeLoginGate();   // トークン取得成功時のみゲート解除
     if (dashInfo) dashInfo.innerHTML = '<span style="color:var(--ok)">✅ D365認証完了 — データ取得中...</span>';
     await fetchCompassFromD365();
@@ -2013,14 +2110,7 @@ async function handleD365Callback() {
 
 // Dataverse OData ヘルパー
 async function dvGet(path) {
-  const res = await fetch(`${DV_API}/${path}`, {
-    headers: {
-      'Authorization': `Bearer ${dvAccessToken}`,
-      'OData-MaxVersion': '4.0',
-      'OData-Version': '4.0',
-      'Accept': 'application/json',
-    }
-  });
+  const res = await dvFetch(`${DV_API}/${path}`);   // v4.1: 401自動リカバリ
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(`API ${res.status}: ${err?.error?.message || res.statusText}`);
@@ -2032,13 +2122,11 @@ async function dvGet(path) {
 async function dvGetAll(path) {
   let results = [], url = `${DV_API}/${path}`;
   while (url) {
-    const res = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${dvAccessToken}`,
-        'OData-MaxVersion': '4.0', 'OData-Version': '4.0', 'Accept': 'application/json',
-      }
-    });
-    if (!res.ok) throw new Error(`API ${res.status}`);
+    const res = await dvFetch(url);                 // v4.1: 401自動リカバリ
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`API ${res.status}: ${err?.error?.message || res.statusText}`);
+    }
     const data = await res.json();
     results = results.concat(data.value || []);
     url = data['@odata.nextLink'] || null;
@@ -2109,7 +2197,7 @@ async function fetchCompassFromD365() {
       const filter = chunk.map(g=>`cr49f_bookingid eq ${g}`).join(' or ');
       const res = await dvGet(
         `cr49f_bookings?$filter=${filter}` +
-        `&$select=cr49f_bookingid,cr49f_booking_no,cr49f_cy_cut,cr49f_etd`
+        `&$select=cr49f_bookingid,cr49f_booking_no,cr49f_cy_cut`
       );
       (res.value||[]).forEach(b => { bkgMap[b.cr49f_bookingid] = b; });
     }
@@ -2159,7 +2247,7 @@ async function fetchCompassFromD365() {
         cr49f_booking_no: bkg.cr49f_booking_no || '',
         cr49f_cy_cut:     toDate(bkg.cr49f_cy_cut),
         purchase_co_no:   coMap[r['_crcf9_purchase_contract_id_value']] || '',  // ✅ v3.2: 購買契約番号
-        '年月':           0,
+        // v4.1: '年月' は Excel時代の列(D365に無し)。判定に使われていなかったため削除。
       };
     }).filter(r => r.purchase_price > 0);
 
