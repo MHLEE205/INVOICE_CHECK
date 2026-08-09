@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v4.3</title>
+<title>LEENAI 請求書確認ツール v5.1</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v4.3</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.1</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v4.3 (2026-08-09)</div>
+  <div class="version">請求書確認ツール v5.1 (2026-08-09)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -311,10 +311,10 @@ tr:hover td{background:var(--surface3);}
     </div>
     <div class="step-body">
 
-      <!-- v4.0: 使い方ガイド -->
+      <!-- v5.0: 使い方ガイド -->
       <div style="font-size:12px;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:12px;line-height:1.7;">
-        📌 <b>使い方</b>：COMPASSログイン後、① 業者を選択 → ② 対象月を選択 → ③ 🔍 取得 をクリック<br>
-        <span style="color:var(--text3);">※ ダッシュボードのデータ読込は不要です。ログイン後すぐに照会できます。</span>
+        📌 <b>使い方</b>：COMPASSログイン後、① 業者を選択 → ② 支払月を選択 → ③ 🔍 取得<br>
+        <span style="color:var(--text3);">「支払日 未登録」= 今月処理すべきCT一覧（ETD 6ヶ月以内・未払い）</span>
       </div>
       <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;">
         <div>
@@ -323,18 +323,12 @@ tr:hover td{background:var(--surface3);}
             <option value="">-- 業者を選択 --</option>
           </select>
         </div>
-        <!-- v4.2: 支払状況フィルタ — 既定は未払いのみ (支払済は確認不要) -->
+        <!-- v5.0: 支払月 ドロップダウン (直近6ヶ月 + 未登録) -->
         <div>
-          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">支払状況</label>
-          <select id="cd-paystatus" style="background:var(--surface1);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
-            <option value="unpaid" selected>未払いのみ</option>
-            <option value="paid">支払済のみ</option>
-            <option value="all">全て</option>
+          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">支払月</label>
+          <select id="cd-paym-select" style="min-width:160px;background:var(--surface1);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+            <!-- JS で動的生成 -->
           </select>
-        </div>
-        <div>
-          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">対象月 <span style="color:var(--text3)">(空欄=全期間)</span></label>
-          <input type="month" id="cd-month" style="background:var(--surface1);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
         </div>
         <button class="btn btn-primary" onclick="fetchCompassDetail()" id="cd-fetch-btn">🔍 取得</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadCompassDetailCSV()" id="cd-csv-btn" style="display:none;">📥 CSV</button>
@@ -469,6 +463,7 @@ const DB_NAME='leenai_invoice_v1', DB_STORE='settings';
 // ══════════════════════════════════════════
 window.onload = async () => {
   initCdPackerSelect(); // v3.8
+  initCdPaymSelect(); // v5.0
   // テーマ復元
   updateThemeBtn(document.documentElement.getAttribute('data-theme') || 'dark');
   // OAuth リダイレクト復帰中はゲートに状態表示
@@ -1100,16 +1095,17 @@ function buildOCRPrompt(pattern,bulkMode,summaryOnly){
     return `この請求書から合計金額のみ抽出してください。JSONのみ返してください。\n${header}}\n${common}`;
   }
 
-  // パターン別 items定義
+  // v5.0: パターン別 items定義 (識別キー最適化 — 불필요 필드 제거)
   const itemDefs={
-    'A': `,"items":[{"container_no":"コンテナ番号","booking_no":"BKGNo(なければnull)","weight_kg":重量kg,"unit_price":単価,"amount":金額}]`, // v3.5: date/item除外
-    'B': `,"items":[{"date":"MM/DD","slip_no":"伝票No.","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
-    'C': `,"items":[{"date":"MM/DD","co_no":"CO番号(LR-XXXX-XX)","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
+    'A': `,"items":[{"container_no":"コンテナ番号","weight_kg":重量kg,"unit_price":単価,"amount":金額}]`, // A型: CT番号が識別キー
+    'B': `,"items":[{"slip_no":"伝票No.","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
+    'C': `,"items":[{"co_no":"CO番号(例:LR-2607-DW2)","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`, // C型: CO番号が識別キー
     'D': `,"items":[{"item":"品名","weight_kg":合計重量kg,"unit_price":単価¥/kg,"amount":合計金額}]`,
     'DA':`,"items":[{"item":"品名","weight_kg":合計重量kg,"unit_price":単価¥/kg,"amount":合計金額}]`,
     'E': `,"items":[{"date":"MM/DD","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
-    'F': `,"items":[{"date":"MM/DD","slip_no":"伝票No.","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額,"truck_no":"車番(なければnull)"}]`,
-    'G': `,"items":[{"date":"MM/DD","booking_no":"BKG No.(なければnull)","item":"品名","weight_kg":合計重量kg,"unit_price":単価¥/kg,"amount":金額}]`,
+    'F': `,"items":[{"date":"MM/DD","item":"品名","weight_kg":重量kg,"unit_price":単価¥/kg,"amount":金額}]`, // F型: 車番はCOMPASS入力項目なし
+    'G': `,"items":[{"booking_no":"BKG No.","item":"品名","weight_kg":合計重量kg,"unit_price":単価¥/kg,"amount":金額}]`, // G型: BKG番号が識別キー
+    'Y': `,"items":[]`,
     'Y': `,"items":[]`,
   };
   const notes={
@@ -1416,9 +1412,13 @@ function runMatch(){
       <div class="hint">当月COMPASS ¥${compassTotal.toLocaleString()} + 翌月分 ¥${nextMonthAmt.toLocaleString()} = 請求書 ¥${invoiceTotal.toLocaleString()}</div>
     </div>`;
   }else{
-    // 不一致: 常に明細リポート (精密/通常問わず)
+    // v5.0: 不一致 → 逆算照合を実行
+    const invResult=runInverseCalc(invoiceTotal);
+    html+=renderInverseResult(invResult, invoiceTotal);
+    // 明細リポート (items があれば追加)
     const items=S.invoiceData?.items||[];
-    html+=items.length?renderDetailMatch(items):renderCompassOnlyReport();
+    if(items.length) html+=renderDetailMatch(items);
+    else if(!invResult) html+=renderCompassOnlyReport();
   }
   // v3.5: 精密照合時はOK/翌月含むでも明細確認リポートを追加表示
   if(S.isPrecision&&(isOk||isNext)){
@@ -1690,6 +1690,30 @@ function initCdPackerSelect(){
   document.getElementById('cd-month').value = '';
 }
 
+// v5.0: 支払月 ドロップダウン生成 (直近6ヶ月 + 支払日未登録)
+function initCdPaymSelect(){
+  const sel=document.getElementById('cd-paym-select');
+  if(!sel) return;
+  sel.innerHTML='';
+  const now=new Date();
+  for(let i=0;i<6;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,'0');
+    const opt=document.createElement('option');
+    opt.value=`${y}-${m}`;
+    opt.textContent=`${y}年${d.getMonth()+1}月 支払`;
+    sel.appendChild(opt);
+  }
+  const sep=document.createElement('option');
+  sep.disabled=true; sep.textContent='──────────';
+  sel.appendChild(sep);
+  const unpaid=document.createElement('option');
+  unpaid.value='unpaid'; unpaid.textContent='支払日 未登録';
+  sel.appendChild(unpaid);
+}
+
+
 function showCdStatus(type, msg){
   const el = document.getElementById('cd-status');
   if(!el) return;
@@ -1698,22 +1722,30 @@ function showCdStatus(type, msg){
 }
 
 async function fetchCompassDetail(){
-  // v4.0: COMPASS未ログインチェック
+  // v5.0: COMPASS未ログインチェック
   if(!dvAccessToken){ showCdStatus('warn','⚠️ COMPASSにログインしてから取得してください。ログイン画面はページ再読込で表示されます。'); return; }
   const code = document.getElementById('cd-packer-select').value;
   if(!code){ showCdStatus('warn','業者を選択してください'); return; }
-  // v4.2: 対象月は任意 (空欄なら全期間)。支払状況で絞るのが主フィルタ。
-  const ym = document.getElementById('cd-month').value;
-  const useMonth = !!ym;
-  const payStatus = document.getElementById('cd-paystatus').value;
-  const payF = payStatus==='unpaid' ? ' and crcf9_purchase_payment_date eq null'
-             : payStatus==='paid'   ? ' and crcf9_purchase_payment_date ne null' : '';
-  let y=0,m=0,fromStr='',toStr='';
-  if(useMonth){
-    [y, m] = ym.split('-').map(Number);
-    const lastDay = new Date(y, m, 0).getDate();
-    fromStr = `${y}-${String(m).padStart(2,'0')}-01T00:00:00Z`;
-    toStr   = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}T23:59:59Z`;
+
+  // v5.0: 支払月ドロップダウン
+  const paymVal = document.getElementById('cd-paym-select').value;
+  if(!paymVal){ showCdStatus('warn','支払月を選択してください'); return; }
+  const isUnpaid = paymVal === 'unpaid';
+  const today = new Date(); today.setHours(23,59,59,0);
+  const etd6m = new Date(today); etd6m.setDate(etd6m.getDate()-180);
+  const etd6mStr = etd6m.toISOString().slice(0,10)+'T00:00:00Z';
+
+  // 支払月フィルタ
+  let paymF = '';
+  let paymY=0, paymM=0;
+  if(isUnpaid){
+    paymF = ' and crcf9_purchase_payment_date eq null';
+  } else {
+    [paymY, paymM] = paymVal.split('-').map(Number);
+    const lastDay = new Date(paymY, paymM, 0).getDate();
+    const pFrom = `${paymY}-${String(paymM).padStart(2,'0')}-01T00:00:00Z`;
+    const pTo   = `${paymY}-${String(paymM).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}T23:59:59Z`;
+    paymF = ` and crcf9_purchase_payment_date ge ${pFrom} and crcf9_purchase_payment_date le ${pTo}`;
   }
 
   document.getElementById('cd-table-wrap').style.display='none';
@@ -1723,21 +1755,20 @@ async function fetchCompassDetail(){
   document.getElementById('cd-fetch-btn').disabled=true;
 
   try{
-    // ── Step 1: Packer GUID 取得
+    // ── Step 1: Packer GUID
     showCdStatus('info','<span class="spinner"></span> Packer情報取得中...');
     const pkRes = await dvGet(`cr49f_packers?$filter=cr49f_packer eq '${code}'&$select=cr49f_packerid&$top=1`);
     const pkGuid = pkRes.value?.[0]?.cr49f_packerid;
     if(!pkGuid){ showCdStatus('error',`COMPASSにPacker未登録: ${code}`); return; }
 
-    // ── Step 2: CO番号 一覧
+    // ── Step 2: CO番号 全件
     showCdStatus('info','<span class="spinner"></span> 契約一覧取得中...');
-    // v4.1: $top=500 で打ち切られると当月の契約が欠落するため全件取得に変更
     const contracts = await dvGetAll(
       `cr49f_purchase_contracts?$filter=_cr49f_packer_id_value eq ${pkGuid}`+
       `&$select=cr49f_purchase_contractid,cr49f_purchase_contract_no`+
       `&$orderby=cr49f_purchase_contractid`
     );
-    if(!contracts.length){ showCdStatus('warn',`この業者の契約データがCOMPASSにありません (${code})。※月の条件ではありません`); return; }
+    if(!contracts.length){ showCdStatus('warn',`この業者の契約データがCOMPASSにありません (${code})`); return; }
     const contractMap={};
     contracts.forEach(c=>{contractMap[c.cr49f_purchase_contractid]=c.cr49f_purchase_contract_no;});
     const coGuids = contracts.map(c=>c.cr49f_purchase_contractid);
@@ -1745,7 +1776,7 @@ async function fetchCompassDetail(){
     // ── Step 3: CT 取得 (バッチ15件)
     showCdStatus('info','<span class="spinner"></span> コンテナ明細取得中...');
     const BATCH=15;
-    let workCTs=[], nullCTs=[];
+    let workCTs=[], nullCTs=[], etdExcluded=0;   // v5.1: ETD範囲外で除外した件数
     const ctSel='crcf9_container_no,crcf9_work_date,crcf9_n_w,crcf9_purchase_payment_date,'+
                 '_crcf9_purchase_contract_id_value,_crcf9_item_id_value,_crcf9_booking_id_value';
     const ctExp='crcf9_parker_plant_id($select=crcf9_plant)';
@@ -1753,51 +1784,72 @@ async function fetchCompassDetail(){
     for(let i=0;i<coGuids.length;i+=BATCH){
       const batch=coGuids.slice(i,i+BATCH);
       const coF=batch.map(g=>`_crcf9_purchase_contract_id_value eq ${g}`).join(' or ');
-      // 作業日あり
-      if(useMonth){
-        const r1=await dvGetAll(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date ge ${fromStr} and crcf9_work_date le ${toStr}${payF}&$select=${ctSel}&$expand=${ctExp}`);
-        // 作業日null → 後で cy_cut で絞る
-        const r2=await dvGetAll(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date eq null${payF}&$select=${ctSel}&$expand=${ctExp}`);
+
+      if(isUnpaid){
+        // 未登録: work_dateあり + payment_date null
+        const r1=await dvGetAll(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date ne null${paymF}&$select=${ctSel}&$expand=${ctExp}`);
+        // work_dateなし: cy_open 基準で後でフィルタ
+        const r2=await dvGetAll(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date eq null${paymF}&$select=${ctSel}&$expand=${ctExp}`);
         workCTs.push(...r1);
         nullCTs.push(...r2);
-      }else{
-        // 全期間: 月で切らないので1クエリで済む
-        const r=await dvGetAll(`crcf9_container_informations?$filter=(${coF})${payF}&$select=${ctSel}&$expand=${ctExp}`);
+      } else {
+        // 支払月指定: payment_date で絞る
+        const r=await dvGetAll(`crcf9_container_informations?$filter=(${coF})${paymF}&$select=${ctSel}&$expand=${ctExp}`);
         workCTs.push(...r);
       }
     }
 
-    // ── Step 3.5: 作業日null → cy_cut でフィルタ
-    if(useMonth && nullCTs.length){
-      const bkGuids=[...new Set(nullCTs.map(ct=>ct._crcf9_booking_id_value).filter(Boolean))];
+    // ── Step 3.5: 予約情報でフィルタ
+    //   v5.1修正: ETD 6ヶ月チェックは DOC-E-01 v2.2 §3 STEP1 では
+    //   「未払いCT全体」にかかる1次範囲フィルタだが、v5.0では work_dateなしCT にしか
+    //   適用されていなかった。→ work_dateありCTにも同じチェックをかける。
+    //   ※ ETD自体が未設定の場合は判定材料がないため除外しない (データを黙って捨てない)
+    if(isUnpaid && (nullCTs.length || workCTs.length)){
+      const allForBk=[...workCTs, ...nullCTs];
+      const bkGuids=[...new Set(allForBk.map(ct=>ct._crcf9_booking_id_value).filter(Boolean))];
       const bkMap={};
       for(let i=0;i<bkGuids.length;i+=20){
         const batch=bkGuids.slice(i,i+20);
         const bkF=batch.map(g=>`cr49f_bookingid eq ${g}`).join(' or ');
-        const bkRows=await dvGetAll(`cr49f_bookings?$filter=${bkF}&$select=cr49f_bookingid,cr49f_cy_cut`);
-        bkRows.forEach(b=>{bkMap[b.cr49f_bookingid]=b.cr49f_cy_cut;});
+        // v5.0: cy_open + cy_cut 両方取得
+        const bkRows=await dvGetAll(`cr49f_bookings?$filter=${bkF}&$select=cr49f_bookingid,cr49f_cy_open,cr49f_cy_cut,cr49f_etd`);
+        bkRows.forEach(b=>{bkMap[b.cr49f_bookingid]=b;});
       }
-      const fromD=new Date(y,m-1,1);
-      const toD=new Date(y,m,0,23,59,59);
+
+      const outOfEtd = ct => {
+        const bk=bkMap[ct._crcf9_booking_id_value];
+        return !!(bk && bk.cr49f_etd && new Date(bk.cr49f_etd) < etd6m);
+      };
+
+      // v5.1: work_dateありCT にも ETD 6ヶ月フィルタを適用
+      const beforeCnt = workCTs.length;
+      workCTs = workCTs.filter(ct=>!outOfEtd(ct));
+      etdExcluded = beforeCnt - workCTs.length;
+
       nullCTs.forEach(ct=>{
-        const cyc=bkMap[ct._crcf9_booking_id_value];
-        if(!cyc) return;
-        const d=new Date(cyc);
-        if(d>=fromD&&d<=toD){
-          ct._cy_cut_date=cyc;
-          ct._date_type='cycut';
-          workCTs.push(ct);
-        }
+        const bk=bkMap[ct._crcf9_booking_id_value];
+        if(!bk) return;
+        // ETD 6ヶ月以内チェック
+        if(outOfEtd(ct)){ etdExcluded++; return; }
+        // cy_open ≤ 今日 → 反入開始済み → 含める
+        const cyOpen = bk.cr49f_cy_open;
+        if(!cyOpen) return;
+        if(new Date(cyOpen) > today) return; // CY未オープン → 除外
+        ct._cy_open_date = cyOpen;
+        ct._cy_cut_date  = bk.cr49f_cy_cut||null;
+        ct._date_type    = 'cyopen';
+        workCTs.push(ct);
       });
     }
 
     if(!workCTs.length){
-      showCdStatus('warn', useMonth ? '該当月のコンテナデータなし'
-        : (payStatus==='unpaid' ? '未払いのコンテナはありません（すべて支払済）' : 'コンテナデータなし'));
+      showCdStatus('warn', isUnpaid
+        ? '未払いのコンテナはありません（全て支払済またはETD範囲外）'
+        : '該当月に支払いのコンテナデータなし');
       return;
     }
 
-    // ── Step 4: 単価取得 (purchase_detail)
+    // ── Step 4: 単価取得 (cr49f_purchase_details)
     showCdStatus('info','<span class="spinner"></span> 単価データ取得中...');
     const usedCoGuids=[...new Set(workCTs.map(ct=>ct._crcf9_purchase_contract_id_value).filter(Boolean))];
     const priceMap={};
@@ -1819,7 +1871,8 @@ async function fetchCompassDetail(){
       });
     }
 
-    // ── Step 5: 表レンダリング
+    window._cdEtdExcluded = etdExcluded;   // v5.1
+    window._cdQuery = { packerCode: code, paymVal, isUnpaid };   // v5.1: 逆算側で条件一致を検証するため
     renderCompassDetailTable(workCTs, contractMap, priceMap, code);
 
   }catch(e){
@@ -1833,8 +1886,8 @@ async function fetchCompassDetail(){
 function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
   // 日付決定 & ソート
   cts.forEach(ct=>{
-    ct._dateVal = ct.crcf9_work_date||ct._cy_cut_date||'';
-    ct._dateType = ct.crcf9_work_date?'work':(ct._cy_cut_date?'cycut':'—');
+    ct._dateVal = ct.crcf9_work_date||ct._cy_open_date||ct._cy_cut_date||'';
+    ct._dateType = ct.crcf9_work_date?'work':(ct._date_type||'—');
   });
   cts.sort((a,b)=>a._dateVal.localeCompare(b._dateVal));
 
@@ -1860,9 +1913,11 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
       : '—';
     const badge = ct._dateType==='work'
       ? '<span class="date-badge work">作業日</span>'
-      : ct._dateType==='cycut'
-        ? '<span class="date-badge cycut">🔶 CY CUT</span>'
-        : '—';
+      : ct._dateType==='cyopen'
+        ? '<span class="date-badge cycut">🔶 CY OPEN</span>'
+        : ct._dateType==='cycut'
+          ? '<span class="date-badge cycut">🔶 CY CUT</span>'
+          : '—';
     const plant = ct.crcf9_parker_plant_id?.crcf9_plant||'—';
     const ctNo  = ct.crcf9_container_no||'—';
     const coGuid= ct._crcf9_purchase_contract_id_value;
@@ -1910,7 +1965,8 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
   wrap.style.display='block';
 
   const summary=document.getElementById('cd-summary');
-  summary.innerHTML=`${packerCode} — 取得した全件: ${cts.length}件 / ${totalKg.toLocaleString()} kg / ¥${totalAmt.toLocaleString()}`
+  summary.innerHTML=(window._cdEtdExcluded?`<span style="color:var(--text3)">※ ETD 6ヶ月より前のため除外: ${window._cdEtdExcluded}件 ／ </span>`:'')
+    +`${packerCode} — 取得した全件: ${cts.length}件 / ${totalKg.toLocaleString()} kg / ¥${totalAmt.toLocaleString()}`
     + `<span style="color:var(--text3)">（下の合計は選択分）</span>`
     + (noPriceCnt?`<span style="color:var(--warn)"> ／ ⚠️ 単価未設定 ${noPriceCnt}件は金額に含まれていません</span>`:'');
   summary.style.display='block';
@@ -2015,6 +2071,194 @@ function downloadCompassDetailCSV(){
   a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   a.download=`COMPASS明細_${code}_${ym}.csv`;
   a.click();
+}
+
+
+// ══════════════════════════════════════════
+// v5.0: 逆算照合ロジック
+// ══════════════════════════════════════════
+
+// CT 조합 탐색 (브루트포스 — 애매 CT는 최대 15건 상정)
+function solveCombo(target, candidates){
+  const results=[];
+  const n=candidates.length;
+  for(let mask=0;mask<(1<<n);mask++){
+    let sum=0; const combo=[];
+    for(let i=0;i<n;i++){
+      if(mask&(1<<i)){ sum+=candidates[i].amt; combo.push(i); }
+    }
+    if(sum===target) results.push(combo);
+  }
+  return results;
+}
+
+// CT データ準備 (COMPASS明細タブ取得済みデータを優先)
+function getCTDataForInverse(){
+  // v5.1修正: v5.0は「業者コードが一致するか」しか見ておらず、
+  //   COMPASS明細タブを「◯月 支払」(=支払済) で開いたまま照合すると
+  //   支払済CTが逆算候補に入り、二重支払いの恐れがあった。
+  //   → 取得条件 (業者 + 未払いモード) が一致する場合のみ使用する。
+  const q=window._cdQuery;
+  const okPacker = !!(q && q.packerCode && q.packerCode===S.selectedPacker);
+  const okUnpaid = !!(q && q.isUnpaid);          // 未払い分のみが請求対象
+  window._cdSkipReason = (window._cdRows?.length && !(okPacker&&okUnpaid))
+    ? (!okPacker ? '業者が違います' : '「支払日 未登録」以外で取得した明細です')
+    : '';
+  if(window._cdRows?.length && okPacker && okUnpaid){
+    return window._cdRows.map(r=>({
+      id: r.ctNo||'?',
+      coNo: r.coNo||'',
+      plant: r.plant||'—',
+      item: r.itemName||'—',
+      nwKg: r.nwKg||0,
+      price: r.price,
+      amt: r.amt||0,
+      dateVal: r.dateDisp||'',
+      dateType: r.badge?.includes('CY')?'cyopen':'work',
+      _precise: true
+    }));
+  }
+  // フォールバック: S._compassFiltered (Amount使用)
+  return (S._compassFiltered||[]).map(r=>({
+    id: r.container_no||r.cr49f_booking_no||r.purchase_co_no||'?',
+    coNo: r.purchase_co_no||'',
+    plant: '',
+    item: '',
+    nwKg: (r.Net_Weight||0)*1000,
+    price: r.purchase_price,
+    amt: r.Amount||Math.round((r.Net_Weight||0)*1000*(r.purchase_price||0)),
+    dateVal: r.work_date||r.cr49f_cy_cut||'',
+    dateType: r.work_date?'work':'cyopen',
+    _precise: false
+  }));
+}
+
+// 明確CT vs 曖昧CT 分類 (cy_open 月中=明確, 月末~翌月初=曖昧)
+function classifyCTs(ctData, targetYM){
+  const clearCTs=[], ambigCTs=[];
+  ctData.forEach(ct=>{
+    if(ct.dateType==='work'){
+      clearCTs.push(ct);
+    } else {
+      // cy_open の日付で判定 (21日以降 = 曖昧)
+      const dStr=ct.dateVal;
+      if(!dStr){ ambigCTs.push(ct); return; }
+      // dateVal が MM/DD 形式の場合
+      const dayMatch = dStr.match(/(\d{1,2})\/(\d{1,2})/);
+      const day = dayMatch ? parseInt(dayMatch[2]) : 0;
+      if(day>0&&day<=20) clearCTs.push(ct);
+      else ambigCTs.push(ct);
+    }
+  });
+  return {clearCTs, ambigCTs};
+}
+
+// 逆算実行
+function runInverseCalc(invoiceTotal){
+  const ctData=getCTDataForInverse();
+  if(!ctData.length) return null;
+  const {clearCTs, ambigCTs}=classifyCTs(ctData, S.targetMonth);
+  const clearTotal=clearCTs.reduce((s,ct)=>s+(ct.amt||0),0);
+  const remain=invoiceTotal-clearTotal;
+  let combos=[];
+  if(remain!==0 && ambigCTs.length>0 && ambigCTs.length<=20){
+    combos=solveCombo(remain, ambigCTs);
+  }
+  const precise=ctData[0]?._precise??false;
+  return {clearCTs, ambigCTs, clearTotal, remain, combos, precise};
+}
+
+// 逆算結果HTML生成
+function renderInverseResult(inv, invoiceTotal){
+  if(!inv) return '';
+  const {clearCTs, ambigCTs, clearTotal, remain, combos, precise}=inv;
+  const isPerfect=remain===0;
+
+  let html=`<div style="margin-top:14px;border-top:2px solid var(--border);padding-top:14px;">
+    <div style="font-size:12px;font-weight:700;color:var(--text2);letter-spacing:.5px;margin-bottom:10px;">
+      🔁 逆算照合${precise?'':' <span style="color:var(--warn);font-size:10px;">（単価は概算）</span>'}
+    </div>
+    ${(!precise&&window._cdSkipReason)?`<div style="font-size:11px;color:var(--warn);background:var(--surface3);border-left:3px solid var(--warn);border-radius:4px;padding:6px 10px;margin-bottom:10px;line-height:1.6;">
+      ⚠️ COMPASS明細タブのデータは使用していません — ${window._cdSkipReason}。<br>
+      <span style="color:var(--text2)">正確な契約単価で逆算するには、明細タブで<b>同じ業者</b>を<b>「支払日 未登録」</b>で取得してから照合してください。</span>
+    </div>`:''}`;
+
+  // 明確CT一覧
+  html+=`<div style="font-size:12px;margin-bottom:6px;">
+    <b style="color:var(--ok)">✅ 明確CT</b>
+    <span style="color:var(--text2);margin-left:8px;">${clearCTs.length}件 / ¥${clearTotal.toLocaleString()}</span>
+  </div>`;
+
+  // 曖昧CTと組合せ
+  if(ambigCTs.length){
+    html+=`<div style="font-size:12px;margin-top:8px;margin-bottom:4px;">
+      <b style="color:var(--warn)">⚠️ 確認が必要なCT</b>
+      <span style="color:var(--text2);margin-left:8px;">${ambigCTs.length}件</span>
+    </div>`;
+    html+=`<div class="tbl-wrap" style="max-height:200px;overflow-y:auto;"><table>
+      <tr><th><input type="checkbox" id="inv-chk-all" onchange="invCheckAll(this.checked)"></th>
+      <th>CT/BKG/CO</th><th>品目</th><th style="text-align:right">金額</th></tr>`;
+    ambigCTs.forEach((ct,i)=>{
+      const checked=combos.length===1&&combos[0].includes(i)?'checked':'';
+      html+=`<tr><td><input type="checkbox" class="inv-chk" data-i="${i}" ${checked} onchange="updateInvSelection()"></td>
+        <td class="mono" style="font-size:11px">${ct.id}</td>
+        <td style="font-size:11px">${ct.item||'—'}</td>
+        <td style="text-align:right">¥${(ct.amt||0).toLocaleString()}</td></tr>`;
+    });
+    html+=`</table></div>`;
+
+    // AI提案
+    if(combos.length===1){
+      html+=`<div style="margin-top:8px;padding:8px 12px;background:var(--surface2);border-left:3px solid var(--ok);border-radius:4px;font-size:12px;">
+        🤖 <b>AI提案:</b> 上記チェックの組合せが残余 <b>¥${remain.toLocaleString()}</b> と一致します
+      </div>`;
+    } else if(combos.length>1){
+      html+=`<div style="margin-top:8px;font-size:12px;color:var(--warn);">⚠️ 候補が${combos.length}件あります。手動で選択してください。</div>`;
+    } else if(remain!==0){
+      html+=`<div style="margin-top:8px;font-size:12px;color:var(--error);">❌ 一致する組合せが見つかりません。差異: ¥${remain.toLocaleString()}</div>`;
+    }
+  }
+
+  // 逆算合計
+  html+=`<div id="inv-total-bar" style="margin-top:12px;padding:8px 12px;background:var(--surface2);border-radius:6px;font-size:13px;display:flex;gap:16px;flex-wrap:wrap;">
+    <span>請求書: <b>¥${invoiceTotal.toLocaleString()}</b></span>
+    <span>明確CT: <b>¥${clearTotal.toLocaleString()}</b></span>
+    <span id="inv-sel-amt">確認CT: <b>¥0</b></span>
+    <span id="inv-remain" style="color:${isPerfect?'var(--ok)':'var(--error)'}">
+      差額: <b>¥${remain.toLocaleString()}</b>
+      ${isPerfect?'✅':''}
+    </span>
+  </div>`;
+
+  html+='</div>';
+
+  // グローバルに逆算データを保存
+  window._invData={clearCTs, ambigCTs, clearTotal, invoiceTotal, remain};
+  return html;
+}
+
+function invCheckAll(on){
+  document.querySelectorAll('.inv-chk').forEach(c=>{c.checked=on;});
+  updateInvSelection();
+}
+
+function updateInvSelection(){
+  if(!window._invData) return;
+  const {clearTotal, invoiceTotal}=window._invData;
+  const ambigCTs=window._invData.ambigCTs||[];
+  let selAmt=0;
+  document.querySelectorAll('.inv-chk').forEach((c,i)=>{
+    if(c.checked) selAmt+=(ambigCTs[parseInt(c.dataset.i)]?.amt||0);
+  });
+  const total=clearTotal+selAmt;
+  const remain=invoiceTotal-total;
+  const remEl=document.getElementById('inv-remain');
+  const selEl=document.getElementById('inv-sel-amt');
+  if(selEl) selEl.innerHTML=`確認CT: <b>¥${selAmt.toLocaleString()}</b>`;
+  if(remEl){
+    remEl.innerHTML=`差額: <b>¥${remain.toLocaleString()}</b> ${remain===0?'✅':''}`;
+    remEl.style.color=remain===0?'var(--ok)':'var(--error)';
+  }
 }
 
 
