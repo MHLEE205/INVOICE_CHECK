@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v3.7</title>
+<title>LEENAI 請求書確認ツール v3.8</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -49,6 +49,9 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .tab.active{background:var(--surface);color:var(--text);border-color:var(--border);}
 .tab:hover:not(.active){color:var(--text);}
 .tab-body{display:none;}.tab-body.active{display:block;}
+.date-badge{display:inline-block;padding:1px 7px;border-radius:3px;font-size:10px;font-weight:700;white-space:nowrap;}
+.date-badge.work{background:var(--ok);color:#fff;}
+.date-badge.cycut{background:var(--warn);color:#fff;}
 .tab-content{background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 8px 8px 8px;padding:20px;min-height:400px;}
 .folder-banner{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;margin-bottom:16px;}
 .folder-banner.ok{border-color:var(--ok);}
@@ -146,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v3.7</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v3.8</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -156,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v3.7 (2026-08-08)</div>
+  <div class="version">請求書確認ツール v3.8 (2026-08-08)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -172,6 +175,7 @@ tr:hover td{background:var(--surface3);}
 <div class="tabs">
   <div class="tab active" id="tab-dash" onclick="switchTab('dash')">🏠 ダッシュボード</div>
   <div class="tab" id="tab-match" onclick="switchTab('match')">📋 照合</div>
+  <div class="tab" id="tab-cd" onclick="switchTab('cd')">📊 COMPASS明細</div>
 </div>
 
 <!-- ════ DASHBOARD ════ -->
@@ -295,6 +299,47 @@ tr:hover td{background:var(--surface3);}
 </div>
 </div>
 
+<!-- ════ COMPASS明細 TAB ════ -->
+<div class="tab-body" id="body-cd">
+<div class="tab-content">
+
+  <div class="step done">
+    <div class="step-hdr">
+      <div class="step-num">📊</div>
+      <div class="step-title">COMPASS 仕入明細</div>
+      <div class="step-sub">CT別 重量・契約単価・金額 確認</div>
+    </div>
+    <div class="step-body">
+
+      <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px;">
+        <div>
+          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">対象業者</label>
+          <select id="cd-packer-select" style="min-width:160px;background:var(--surface1);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+            <option value="">-- 業者を選択 --</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">対象月</label>
+          <input type="month" id="cd-month" style="background:var(--surface1);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+        </div>
+        <button class="btn btn-primary" onclick="fetchCompassDetail()" id="cd-fetch-btn">🔍 取得</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadCompassDetailCSV()" id="cd-csv-btn" style="display:none;">📥 CSV</button>
+      </div>
+
+      <div id="cd-status" style="margin-bottom:8px;"></div>
+
+      <div id="cd-summary" style="font-size:12px;color:var(--text2);margin-bottom:8px;display:none;"></div>
+
+      <div class="tbl-wrap" id="cd-table-wrap" style="display:none;">
+        <table id="cd-table"></table>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</div>
+
 <script>
 // ══════════════════════════════════════════
 // VENDOR_MASTER (47社 A~Y型)
@@ -393,6 +438,7 @@ const DB_NAME='leenai_invoice_v1', DB_STORE='settings';
 // INIT
 // ══════════════════════════════════════════
 window.onload = async () => {
+  initCdPackerSelect(); // v3.8
   // テーマ復元
   updateThemeBtn(document.documentElement.getAttribute('data-theme') || 'dark');
   // OAuth リダイレクト復帰中はゲートに状態表示
@@ -419,7 +465,7 @@ function saveApiKey(){
 }
 function updateApiDot(){document.getElementById('apiDot').className='api-dot'+(S.apiKey?' ok':'');}
 function switchTab(name){
-  ['dash','match'].forEach(t=>{
+  ['dash','match','cd'].forEach(t=>{
     document.getElementById('tab-'+t).classList.toggle('active',t===name);
     document.getElementById('body-'+t).classList.toggle('active',t===name);
   });
@@ -1573,6 +1619,255 @@ function activateStep(id){
   document.querySelectorAll('.step').forEach(s=>s.classList.remove('active','open'));
   const el=document.getElementById(id); if(el) el.classList.add('active','open');
 }
+// ══════════════════════════════════════════
+// v3.8: COMPASS明細タブ — CT別 重量・契約単価・金額
+// ══════════════════════════════════════════
+function initCdPackerSelect(){
+  const sel = document.getElementById('cd-packer-select');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">-- 業者を選択 --</option>';
+  Object.entries(VENDOR_MASTER)
+    .filter(([,v])=>v.ja)
+    .sort((a,b)=>a[1].ja.localeCompare(b[1].ja,'ja'))
+    .forEach(([code,v])=>{
+      const opt = document.createElement('option');
+      opt.value = code; opt.textContent = `${v.ja}（${code}）`;
+      sel.appendChild(opt);
+    });
+  // 今月をデフォルト
+  const now = new Date();
+  document.getElementById('cd-month').value =
+    `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+}
+
+function showCdStatus(type, msg){
+  const el = document.getElementById('cd-status');
+  if(!el) return;
+  const color = type==='error'?'var(--error)':type==='warn'?'var(--warn)':'var(--text2)';
+  el.innerHTML = msg ? `<span style="font-size:12px;color:${color};">${msg}</span>` : '';
+}
+
+async function fetchCompassDetail(){
+  const code = document.getElementById('cd-packer-select').value;
+  if(!code){ showCdStatus('warn','業者を選択してください'); return; }
+  const ym = document.getElementById('cd-month').value;
+  if(!ym){ showCdStatus('warn','対象月を選択してください'); return; }
+
+  const [y, m] = ym.split('-').map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  const fromStr = `${y}-${String(m).padStart(2,'0')}-01T00:00:00Z`;
+  const toStr   = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}T23:59:59Z`;
+
+  document.getElementById('cd-table-wrap').style.display='none';
+  document.getElementById('cd-summary').style.display='none';
+  document.getElementById('cd-csv-btn').style.display='none';
+  document.getElementById('cd-fetch-btn').disabled=true;
+
+  try{
+    // ── Step 1: Packer GUID 取得
+    showCdStatus('info','<span class="spinner"></span> Packer情報取得中...');
+    const pkRes = await dvGet(`cr49f_packers?$filter=cr49f_packer eq '${code}'&$select=cr49f_packerid&$top=1`);
+    const pkGuid = pkRes.value?.[0]?.cr49f_packerid;
+    if(!pkGuid){ showCdStatus('error',`COMPASSにPacker未登録: ${code}`); return; }
+
+    // ── Step 2: CO番号 一覧
+    showCdStatus('info','<span class="spinner"></span> 契約一覧取得中...');
+    const coRes = await dvGet(
+      `cr49f_purchase_contracts?$filter=_cr49f_packer_id_value eq ${pkGuid}`+
+      `&$select=cr49f_purchase_contractid,cr49f_purchase_contract_no&$top=500`
+    );
+    const contracts = coRes.value||[];
+    if(!contracts.length){ showCdStatus('warn','該当月の契約データなし'); return; }
+    const contractMap={};
+    contracts.forEach(c=>{contractMap[c.cr49f_purchase_contractid]=c.cr49f_purchase_contract_no;});
+    const coGuids = contracts.map(c=>c.cr49f_purchase_contractid);
+
+    // ── Step 3: CT 取得 (バッチ15件)
+    showCdStatus('info','<span class="spinner"></span> コンテナ明細取得中...');
+    const BATCH=15;
+    let workCTs=[], nullCTs=[];
+    const ctSel='crcf9_container_no,crcf9_work_date,crcf9_n_w,'+
+                '_crcf9_purchase_contract_id_value,_crcf9_item_id_value,_crcf9_booking_id_value';
+    const ctExp='crcf9_parker_plant_id($select=crcf9_plant)';
+
+    for(let i=0;i<coGuids.length;i+=BATCH){
+      const batch=coGuids.slice(i,i+BATCH);
+      const coF=batch.map(g=>`_crcf9_purchase_contract_id_value eq ${g}`).join(' or ');
+      // 作業日あり
+      const r1=await dvGet(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date ge ${fromStr} and crcf9_work_date le ${toStr}&$select=${ctSel}&$expand=${ctExp}&$top=500`);
+      // 作業日null
+      const r2=await dvGet(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date eq null&$select=${ctSel}&$expand=${ctExp}&$top=500`);
+      workCTs.push(...(r1.value||[]));
+      nullCTs.push(...(r2.value||[]));
+    }
+
+    // ── Step 3.5: 作業日null → cy_cut でフィルタ
+    if(nullCTs.length){
+      const bkGuids=[...new Set(nullCTs.map(ct=>ct._crcf9_booking_id_value).filter(Boolean))];
+      const bkMap={};
+      for(let i=0;i<bkGuids.length;i+=20){
+        const batch=bkGuids.slice(i,i+20);
+        const bkF=batch.map(g=>`cr49f_bookingid eq ${g}`).join(' or ');
+        const bkRes=await dvGet(`cr49f_bookings?$filter=${bkF}&$select=cr49f_bookingid,cr49f_cy_cut&$top=100`);
+        (bkRes.value||[]).forEach(b=>{bkMap[b.cr49f_bookingid]=b.cr49f_cy_cut;});
+      }
+      const fromD=new Date(y,m-1,1);
+      const toD=new Date(y,m,0,23,59,59);
+      nullCTs.forEach(ct=>{
+        const cyc=bkMap[ct._crcf9_booking_id_value];
+        if(!cyc) return;
+        const d=new Date(cyc);
+        if(d>=fromD&&d<=toD){
+          ct._cy_cut_date=cyc;
+          ct._date_type='cycut';
+          workCTs.push(ct);
+        }
+      });
+    }
+
+    if(!workCTs.length){ showCdStatus('warn','該当月のコンテナデータなし'); return; }
+
+    // ── Step 4: 単価取得 (purchase_detail)
+    showCdStatus('info','<span class="spinner"></span> 単価データ取得中...');
+    const usedCoGuids=[...new Set(workCTs.map(ct=>ct._crcf9_purchase_contract_id_value).filter(Boolean))];
+    const priceMap={};
+    for(let i=0;i<usedCoGuids.length;i+=BATCH){
+      const batch=usedCoGuids.slice(i,i+BATCH);
+      const coF=batch.map(g=>`_cr49f_purchase_contract_id_value eq ${g}`).join(' or ');
+      const dRes=await dvGet(
+        `cr49f_purchase_details?$filter=${coF}`+
+        `&$select=cr49f_price,_cr49f_purchase_contract_id_value,_cr49f_item_id_value`+
+        `&$expand=cr49f_item_id($select=cr49f_item,crcf9_item_japan)&$top=500`
+      );
+      (dRes.value||[]).forEach(d=>{
+        const key=`${d._cr49f_purchase_contract_id_value}__${d._cr49f_item_id_value}`;
+        priceMap[key]={
+          price: d.cr49f_price,
+          item_code: d.cr49f_item_id?.cr49f_item||'',
+          item_japan: d.cr49f_item_id?.crcf9_item_japan||''
+        };
+      });
+    }
+
+    // ── Step 5: 表レンダリング
+    renderCompassDetailTable(workCTs, contractMap, priceMap, code);
+
+  }catch(e){
+    showCdStatus('error','❌ エラー: '+e.message);
+    console.error(e);
+  }finally{
+    document.getElementById('cd-fetch-btn').disabled=false;
+  }
+}
+
+function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
+  // 日付決定 & ソート
+  cts.forEach(ct=>{
+    ct._dateVal = ct.crcf9_work_date||ct._cy_cut_date||'';
+    ct._dateType = ct.crcf9_work_date?'work':(ct._cy_cut_date?'cycut':'—');
+  });
+  cts.sort((a,b)=>a._dateVal.localeCompare(b._dateVal));
+
+  let totalKg=0, totalAmt=0, rows=[];
+
+  let html=`<table>
+  <thead><tr style="background:var(--surface2);">
+    <th style="white-space:nowrap">日付</th>
+    <th>区分</th>
+    <th style="white-space:nowrap">営業所</th>
+    <th>CT番号</th>
+    <th style="white-space:nowrap">CO番号</th>
+    <th>品目</th>
+    <th style="text-align:right;white-space:nowrap">重量(kg)</th>
+    <th style="text-align:right;white-space:nowrap">単価(¥/kg)</th>
+    <th style="text-align:right;white-space:nowrap">金額(¥)</th>
+  </tr></thead><tbody>`;
+
+  for(const ct of cts){
+    const dateDisp = ct._dateVal
+      ? ct._dateVal.slice(5,10).replace('-','/')
+      : '—';
+    const badge = ct._dateType==='work'
+      ? '<span class="date-badge work">作業日</span>'
+      : ct._dateType==='cycut'
+        ? '<span class="date-badge cycut">🔶 CY CUT</span>'
+        : '—';
+    const plant = ct.crcf9_parker_plant_id?.crcf9_plant||'—';
+    const ctNo  = ct.crcf9_container_no||'—';
+    const coGuid= ct._crcf9_purchase_contract_id_value;
+    const coNo  = contractMap[coGuid]||'—';
+    const itemGuid = ct._crcf9_item_id_value;
+    const key   = `${coGuid}__${itemGuid}`;
+    const pd    = priceMap[key];
+    const itemName = pd?.item_japan||pd?.item_code||'—';
+    const price = pd?.price??null;
+    const nwKg  = ct.crcf9_n_w||0;
+    const amt   = price!=null ? Math.round(nwKg*price) : null;
+    if(price!=null){ totalKg+=nwKg; totalAmt+=amt; }
+
+    rows.push({dateDisp,badge,plant,ctNo,coNo,itemName,price,nwKg,amt});
+
+    const priceDisp = price!=null ? '¥'+price : '<span style="color:var(--warn)">単価未設定</span>';
+    const amtDisp   = amt!=null   ? '¥'+amt.toLocaleString() : '—';
+    html+=`<tr>
+      <td style="white-space:nowrap">${dateDisp}</td>
+      <td style="white-space:nowrap">${badge}</td>
+      <td style="font-size:11px;white-space:nowrap">${plant}</td>
+      <td class="mono" style="font-size:11px">${ctNo}</td>
+      <td class="mono" style="font-size:11px;white-space:nowrap">${coNo}</td>
+      <td style="white-space:nowrap">${itemName}</td>
+      <td style="text-align:right">${nwKg.toLocaleString()}</td>
+      <td style="text-align:right">${priceDisp}</td>
+      <td style="text-align:right">${amtDisp}</td>
+    </tr>`;
+  }
+
+  html+=`</tbody><tfoot><tr style="background:var(--surface2);font-weight:700;">
+    <td colspan="6" style="text-align:right;padding-right:12px;">計 ${cts.length}件</td>
+    <td style="text-align:right">${totalKg.toLocaleString()}</td>
+    <td></td>
+    <td style="text-align:right">¥${totalAmt.toLocaleString()}</td>
+  </tr></tfoot></table>`;
+
+  const wrap=document.getElementById('cd-table-wrap');
+  wrap.innerHTML=html;
+  wrap.style.display='block';
+
+  const summary=document.getElementById('cd-summary');
+  summary.textContent=`${packerCode} — ${cts.length}件 / 合計重量 ${totalKg.toLocaleString()} kg / 合計金額 ¥${totalAmt.toLocaleString()}`;
+  summary.style.display='block';
+  document.getElementById('cd-csv-btn').style.display='';
+
+  // CSVデータ保存
+  window._cdRows=rows; window._cdMeta={packerCode};
+
+  showCdStatus('','');
+}
+
+function downloadCompassDetailCSV(){
+  const rows=window._cdRows||[];
+  const code=window._cdMeta?.packerCode||'';
+  const ym=document.getElementById('cd-month').value;
+  const header='日付,区分,営業所,CT番号,CO番号,品目,重量(kg),単価(¥/kg),金額(¥)';
+  const lines=rows.map(r=>[
+    r.dateDisp,
+    r.badge.replace(/<[^>]+>/g,''),
+    r.plant,
+    r.ctNo,
+    r.coNo,
+    r.itemName,
+    r.nwKg,
+    r.price??'',
+    r.amt??''
+  ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  const csv='﻿'+header+'\n'+lines.join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`COMPASS明細_${code}_${ym}.csv`;
+  a.click();
+}
+
+
 function resetMatch(){
   S._compassFiltered=[];S.invoiceData=null;S.selectedPacker='';S.targetMonth=0;S.lastMatchResult=null;S.isPrecision=false; // v3.5
   document.getElementById('invoiceResult').style.display='none';
