@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v5.3</title>
+<title>LEENAI 請求書確認ツール v5.4</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.3</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.4</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v5.3 (2026-08-09)</div>
+  <div class="version">請求書確認ツール v5.4 (2026-08-09)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -2501,15 +2501,36 @@ async function handleD365Callback() {
       `https://login.microsoftonline.com/${DV_TENANT_ID}/oauth2/v2.0/token`,
       { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body }
     );
-    if (!res.ok) throw new Error('トークン取得失敗: ' + (await res.text()));
+    if (!res.ok) {
+      // v5.4: Entraのエラー本文をそのまま出すと読めないため、原因別の案内に変換
+      const raw = await res.text();
+      console.error('token endpoint error:', raw);   // 詳細はコンソールに残す
+      let msg = 'ログインに失敗しました。';
+      try{
+        const j = JSON.parse(raw);
+        const code = (j.error_codes && j.error_codes[0]) || '';
+        if (j.error === 'invalid_grant' && String(code) === '70008') {
+          msg = 'ログインの有効期限が切れました（認証コードは数分で失効します）。もう一度ログインしてください。';
+        } else if (j.error === 'invalid_grant') {
+          msg = 'ログイン情報が無効です。もう一度ログインしてください。';
+        } else if (j.error === 'invalid_client' || j.error === 'unauthorized_client') {
+          msg = 'アプリ登録の設定に問題があります（Azure側の確認が必要です）。';
+        } else if (j.error_description) {
+          msg = String(j.error_description).split('Trace ID')[0].trim();
+        }
+      }catch{}
+      const err = new Error(msg); err.friendly = true; throw err;
+    }
     dvSetToken(await res.json());   // v4.1: refresh_token / expires_in も保持
     closeLoginGate();   // トークン取得成功時のみゲート解除
     if (dashInfo) dashInfo.innerHTML = '<span style="color:var(--ok)">✅ D365認証完了 — データ取得中...</span>';
     await fetchCompassFromD365();
   } catch(e) {
     // 認証失敗時はゲートを開けたまま、ゲート上にエラー表示 (ログイン必須)
-    if (gs) gs.innerHTML = `<span style="color:var(--danger)">❌ 認証エラー: ${e.message}</span>`;
-    if (dashInfo) dashInfo.innerHTML = `<span style="color:var(--danger)">❌ D365認証エラー: ${e.message}</span>`;
+    const shown = e.friendly ? e.message : ('認証エラー: ' + String(e.message||'').slice(0,120));
+    if (gs) gs.innerHTML = `<span style="color:var(--danger)">❌ ${shown}</span>`
+      + `<br><span style="color:var(--text2);font-size:11px;">上の「🔑 COMPASSログイン」をもう一度クリックしてください</span>`;
+    if (dashInfo) dashInfo.innerHTML = `<span style="color:var(--danger)">❌ ${shown}</span>`;
   }
 }
 
