@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v5.5</title>
+<title>LEENAI 請求書確認ツール v5.6</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.5</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.6</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v5.5 (2026-08-09)</div>
+  <div class="version">請求書確認ツール v5.6 (2026-08-09)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -1836,7 +1836,8 @@ async function fetchCompassDetail(){
         const batch=bkGuids.slice(i,i+20);
         const bkF=batch.map(g=>`cr49f_bookingid eq ${g}`).join(' or ');
         // v5.0: cy_open + cy_cut 両方取得
-        const bkRows=await dvGetAll(`cr49f_bookings?$filter=${bkF}&$select=cr49f_bookingid,cr49f_cy_open,cr49f_cy_cut,cr49f_etd`);
+        // v5.6: BKG単位照合のため cr49f_booking_no を追加取得
+        const bkRows=await dvGetAll(`cr49f_bookings?$filter=${bkF}&$select=cr49f_bookingid,cr49f_booking_no,cr49f_cy_open,cr49f_cy_cut,cr49f_etd`);
         bkRows.forEach(b=>{bkMap[b.cr49f_bookingid]=b;});
       }
 
@@ -1849,6 +1850,14 @@ async function fetchCompassDetail(){
       const beforeCnt = workCTs.length;
       workCTs = workCTs.filter(ct=>!outOfEtd(ct));
       etdExcluded = beforeCnt - workCTs.length;
+
+      // v5.6: BKG単位照合のため BKG No. をCTに付与 (G型: SK/沖縄/山發/國吉/宮崎)
+      const attachBkgNo = ct => {
+        const bk=bkMap[ct._crcf9_booking_id_value];
+        ct._booking_no = bk?.cr49f_booking_no || '';
+      };
+      workCTs.forEach(attachBkgNo);
+      nullCTs.forEach(attachBkgNo);
 
       nullCTs.forEach(ct=>{
         const bk=bkMap[ct._crcf9_booking_id_value];
@@ -1958,7 +1967,8 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
     totalKg += nwKg;
     if(price!=null){ totalAmt+=amt; } else { noPriceCnt++; }
 
-    rows.push({dateDisp,badge,plant,ctNo,coNo,itemName,price,nwKg,amt});
+    const bkgNo = ct._booking_no || '';   // v5.6
+    rows.push({dateDisp,badge,plant,ctNo,coNo,bkgNo,itemName,price,nwKg,amt});
 
     const priceDisp = price!=null ? '¥'+price : '<span style="color:var(--warn)">単価未設定</span>';
     const amtDisp   = amt!=null   ? '¥'+amt.toLocaleString() : '—';
@@ -2308,7 +2318,7 @@ function renderPrecisionMatch(invoiceData, ctRows){
   const getCTKey=(ct,type)=>{
     if(type==='CT')  return ct.ctNo||'';
     if(type==='CO')  return ct.coNo||'';
-    if(type==='BKG') return ct._ct?._crcf9_booking_id_value||ct.coNo||'';
+    if(type==='BKG') return ct.bkgNo||'';   // v5.6: 旧実装は存在しない_ctから予約GUIDを読み、CO番号にフォールバックしていた
     return ct.itemName||'';
   };
 
