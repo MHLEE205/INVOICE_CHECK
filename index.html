@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v5.4</title>
+<title>LEENAI 請求書確認ツール v5.5</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.4</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.5</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v5.4 (2026-08-09)</div>
+  <div class="version">請求書確認ツール v5.5 (2026-08-09)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -916,6 +916,20 @@ async function _doMatch(packer,ym4){
     document.getElementById('step2').classList.add('done');
     activateStep('step3');
     checkMatchReady();
+
+    // v5.5: 精密モード — COMPASS CT データ取得 (単価逆追跡込み)
+    if(S.isPrecision){
+      status.innerHTML='<span class="spinner"></span> COMPASS精密データ取得中...';
+      const cdPackSel=document.getElementById('cd-packer-select');
+      const cdPaymSel=document.getElementById('cd-paym-select');
+      if(cdPackSel) cdPackSel.value=packer;
+      if(cdPaymSel) cdPaymSel.value='unpaid';
+      try{
+        await fetchCompassDetail(); // window._cdRows に保存
+      }catch(e){ console.warn('精密CTデータ取得失敗:',e); }
+      status.innerHTML=`✓ 解析完了: ${vm?.ja||packer} [${pattern}型] / ${formatYM(S.targetMonth)}`;
+    }
+
     runMatch();
   }catch(e){
     fill.style.background='var(--error)';
@@ -1430,6 +1444,11 @@ function runMatch(){
     html+=items.length?renderDetailMatch(items):renderCompassOnlyReport();
   }
   if(S._compassNext?.length&&!isNext) html+=renderNextMonthWarn();
+
+  // v5.5: 精密照合時はCT4分類リポートを追加
+  if(S.isPrecision && window._cdRows?.length && S.invoiceData?.items?.length){
+    html += renderPrecisionMatch(S.invoiceData, window._cdRows);
+  }
 
   document.getElementById('matchResult').innerHTML=html;
   document.getElementById('step3-sub').textContent=isOk?'✅ 一致':isNext?'🟡 翌月含む':'❌ 差異あり';
@@ -2264,6 +2283,142 @@ function updateInvSelection(){
     remEl.innerHTML=`差額: <b>¥${remain.toLocaleString()}</b> ${remain===0?'✅':''}`;
     remEl.style.color=remain===0?'var(--ok)':'var(--error)';
   }
+}
+
+
+// ══════════════════════════════════════════
+// v5.5: 精密照合 — CT別4分類 (✅❌⚠️📋)
+// ══════════════════════════════════════════
+function renderPrecisionMatch(invoiceData, ctRows){
+  const items=(invoiceData.items||[]).filter(it=>it.amount);
+  if(!items.length||!ctRows.length) return '';
+
+  const packer=S.selectedPacker;
+  const vm=VENDOR_MASTER[packer];
+
+  // ── 識別キー抽出 (清求書side)
+  const getInvKey=it=>{
+    if(it.container_no) return {key:it.container_no,type:'CT'};
+    if(it.booking_no)   return {key:it.booking_no,  type:'BKG'};
+    if(it.co_no)        return {key:it.co_no,        type:'CO'};
+    return                     {key:it.item||'',     type:'ITEM'};
+  };
+
+  // ── CT行のキー取得 (COMPASS side)
+  const getCTKey=(ct,type)=>{
+    if(type==='CT')  return ct.ctNo||'';
+    if(type==='CO')  return ct.coNo||'';
+    if(type==='BKG') return ct._ct?._crcf9_booking_id_value||ct.coNo||'';
+    return ct.itemName||'';
+  };
+
+  // ── マッチング
+  const used=new Set();
+  const rows=[];
+
+  for(const it of items){
+    const {key:invKey,type:keyType}=getInvKey(it);
+    const invKg=it.weight_kg||0;
+    const invAmt=it.amount||0;
+    const invPrice=it.unit_price||0;
+
+    let bestIdx=-1;
+    for(let i=0;i<ctRows.length;i++){
+      if(used.has(i)) continue;
+      const ct=ctRows[i];
+      const ctKey=getCTKey(ct,keyType);
+      const normInv=(invKey||'').toLowerCase().replace(/[-_\s]/g,'');
+      const normCT=(ctKey||'').toLowerCase().replace(/[-_\s]/g,'');
+      const keyMatch=normInv&&normCT&&(normCT.includes(normInv)||normInv.includes(normCT));
+      const amtMatch=ct.amt&&invAmt&&ct.amt===invAmt;
+      if(keyMatch||(keyType==='ITEM'&&amtMatch)){bestIdx=i;break;}
+    }
+
+    if(bestIdx>=0){
+      used.add(bestIdx);
+      const ct=ctRows[bestIdx];
+      const ctKg=ct.nwKg||0;
+      const ctPrice=ct.price||0;
+      const ctAmt=ct.amt||0;
+      const kgOk=Math.abs(ctKg-invKg)<0.5;
+      const priceOk=!invPrice||!ctPrice||Math.abs(ctPrice-invPrice)<0.01;
+      const status=(kgOk&&priceOk)?'✅':'❌';
+      const kgDiff=Math.round(ctKg-invKg);
+      rows.push({status,invKey,ct,invKg,invAmt,invPrice,ctKg,ctAmt,ctPrice,kgOk,priceOk,kgDiff});
+    }else{
+      // 請求書にあるがCOMPASS CT 未マッチ → ⚠️ 組合候補
+      rows.push({status:'⚠️',invKey,ct:null,invKg,invAmt,invPrice,ctKg:0,ctAmt:0,ctPrice:0});
+    }
+  }
+
+  // COMPASS有/請求書無 CT → 📋
+  for(let i=0;i<ctRows.length;i++){
+    if(!used.has(i)){
+      rows.push({status:'📋',invKey:null,ct:ctRows[i],invKg:0,invAmt:0,invPrice:0});
+    }
+  }
+
+  // ── 集計
+  const cnt={'✅':0,'❌':0,'⚠️':0,'📋':0};
+  rows.forEach(r=>{ if(cnt[r.status]!==undefined) cnt[r.status]++; });
+
+  // ── HTML
+  let html=`<div style="margin-top:16px;border-top:2px solid var(--border);padding-top:14px;">
+    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.5px;">
+      🔍 精密照合 — CT別4分類
+    </div>
+    <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap;font-size:12px;">
+      <span style="color:var(--ok);font-weight:600">✅ 一致 ${cnt['✅']}件</span>
+      <span style="color:var(--error);font-weight:600">❌ 不一致 ${cnt['❌']}件</span>
+      <span style="color:var(--warn);font-weight:600">⚠️ 組合候補 ${cnt['⚠️']}件</span>
+      <span style="color:var(--text2);font-weight:600">📋 COMPASS有/請求書無 ${cnt['📋']}件</span>
+    </div>
+    <div class="tbl-wrap" style="max-height:440px;overflow-y:auto;"><table>
+    <thead><tr style="background:var(--surface2);">
+      <th style="text-align:center">状態</th>
+      <th>識別キー</th>
+      <th>品目</th>
+      <th style="text-align:right">請求kg</th>
+      <th style="text-align:right">COMPASSkg</th>
+      <th style="text-align:right">請求単価</th>
+      <th style="text-align:right">COMPASS単価</th>
+      <th>差異</th>
+    </tr></thead><tbody>`;
+
+  for(const r of rows){
+    const stColor=r.status==='✅'?'var(--ok)':r.status==='❌'?'var(--error)':r.status==='⚠️'?'var(--warn)':'var(--text2)';
+    const idKey=r.invKey||r.ct?.coNo||r.ct?.ctNo||'—';
+    const itemName=r.ct?.itemName||r.invKey||'—';
+    const invKgD=r.invKg?r.invKg.toLocaleString():'—';
+    const ctKgD=r.ct?.nwKg?r.ct.nwKg.toLocaleString():'—';
+    const invPD=r.invPrice?`¥${r.invPrice}`:'—';
+    const ctPD=r.ct?.price!=null?`¥${r.ct.price}`:'—';
+    let diffHtml='—';
+    if(r.status==='❌'){
+      const parts=[];
+      if(!r.kgOk&&r.kgDiff!=null) parts.push(`<span style="color:var(--warn)">重量 ${r.kgDiff>0?'+':''}${r.kgDiff.toLocaleString()}kg</span>`);
+      if(!r.priceOk) parts.push(`<span style="color:var(--error)">単価差</span>`);
+      diffHtml=parts.join(' ')||'—';
+    } else if(r.status==='⚠️'){
+      diffHtml=`<span style="color:var(--warn)">組合候補</span>`;
+    } else if(r.status==='📋'){
+      diffHtml=`<span style="color:var(--text2)">請求書無</span>`;
+    }
+    const rowBg=r.status==='❌'?'background:color-mix(in srgb,var(--error) 8%,transparent);':
+                r.status==='⚠️'?'background:color-mix(in srgb,var(--warn) 8%,transparent);':'';
+    html+=`<tr style="${rowBg}">
+      <td style="text-align:center;font-size:16px;color:${stColor}">${r.status}</td>
+      <td class="mono" style="font-size:11px">${idKey}</td>
+      <td style="font-size:12px">${itemName}</td>
+      <td style="text-align:right">${invKgD}</td>
+      <td style="text-align:right;${!r.kgOk&&r.ct?'color:var(--warn);font-weight:700;':''}">${ctKgD}</td>
+      <td style="text-align:right">${invPD}</td>
+      <td style="text-align:right;${!r.priceOk&&r.ct?'color:var(--error);font-weight:700;':''}">${ctPD}</td>
+      <td style="font-size:11px">${diffHtml}</td>
+    </tr>`;
+  }
+  html+=`</tbody></table></div></div>`;
+  return html;
 }
 
 
