@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v4.1</title>
+<title>LEENAI 請求書確認ツール v4.2</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v4.1</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v4.2</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v4.1 (2026-08-09)</div>
+  <div class="version">請求書確認ツール v4.2 (2026-08-09)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -323,12 +323,37 @@ tr:hover td{background:var(--surface3);}
             <option value="">-- 業者を選択 --</option>
           </select>
         </div>
+        <!-- v4.2: 支払状況フィルタ — 既定は未払いのみ (支払済は確認不要) -->
         <div>
-          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">対象月</label>
+          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">支払状況</label>
+          <select id="cd-paystatus" style="background:var(--surface1);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+            <option value="unpaid" selected>未払いのみ</option>
+            <option value="paid">支払済のみ</option>
+            <option value="all">全て</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px;">対象月 <span style="color:var(--text3)">(空欄=全期間)</span></label>
           <input type="month" id="cd-month" style="background:var(--surface1);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
         </div>
         <button class="btn btn-primary" onclick="fetchCompassDetail()" id="cd-fetch-btn">🔍 取得</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadCompassDetailCSV()" id="cd-csv-btn" style="display:none;">📥 CSV</button>
+      </div>
+
+      <!-- v4.2: 選択したCTと請求書金額の突合せ -->
+      <div id="cd-select-bar" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:10px;">
+        <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:13px;">
+          <button class="btn btn-ghost btn-sm" onclick="cdSelectAll(true)">全選択</button>
+          <button class="btn btn-ghost btn-sm" onclick="cdSelectAll(false)">全解除</button>
+          <div id="cd-sel-info" style="font-weight:700;"></div>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+            <label style="font-size:11px;color:var(--text2);">請求書金額(税抜)</label>
+            <input type="text" id="cd-invoice-amt" inputmode="numeric" placeholder="例: 902500" oninput="updateCdSelection()"
+              style="width:130px;text-align:right;background:var(--surface1);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+            <button class="btn btn-ghost btn-sm" onclick="cdFillFromOCR()" title="照合タブで読み取った請求書金額を取り込む">📄 OCR結果から</button>
+          </div>
+        </div>
+        <div id="cd-diff" style="margin-top:8px;font-size:13px;"></div>
       </div>
 
       <div id="cd-status" style="margin-bottom:8px;"></div>
@@ -1661,10 +1686,8 @@ function initCdPackerSelect(){
       opt.value = code; opt.textContent = `${v.ja}（${code}）`;
       sel.appendChild(opt);
     });
-  // 今月をデフォルト
-  const now = new Date();
-  document.getElementById('cd-month').value =
-    `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  // v4.2: 既定は空欄(全期間)。支払状況=未払いのみ が主フィルタなので月で切る必要はない。
+  document.getElementById('cd-month').value = '';
 }
 
 function showCdStatus(type, msg){
@@ -1679,17 +1702,24 @@ async function fetchCompassDetail(){
   if(!dvAccessToken){ showCdStatus('warn','⚠️ COMPASSにログインしてから取得してください。ログイン画面はページ再読込で表示されます。'); return; }
   const code = document.getElementById('cd-packer-select').value;
   if(!code){ showCdStatus('warn','業者を選択してください'); return; }
+  // v4.2: 対象月は任意 (空欄なら全期間)。支払状況で絞るのが主フィルタ。
   const ym = document.getElementById('cd-month').value;
-  if(!ym){ showCdStatus('warn','対象月を選択してください'); return; }
-
-  const [y, m] = ym.split('-').map(Number);
-  const lastDay = new Date(y, m, 0).getDate();
-  const fromStr = `${y}-${String(m).padStart(2,'0')}-01T00:00:00Z`;
-  const toStr   = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}T23:59:59Z`;
+  const useMonth = !!ym;
+  const payStatus = document.getElementById('cd-paystatus').value;
+  const payF = payStatus==='unpaid' ? ' and crcf9_purchase_payment_date eq null'
+             : payStatus==='paid'   ? ' and crcf9_purchase_payment_date ne null' : '';
+  let y=0,m=0,fromStr='',toStr='';
+  if(useMonth){
+    [y, m] = ym.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
+    fromStr = `${y}-${String(m).padStart(2,'0')}-01T00:00:00Z`;
+    toStr   = `${y}-${String(m).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}T23:59:59Z`;
+  }
 
   document.getElementById('cd-table-wrap').style.display='none';
   document.getElementById('cd-summary').style.display='none';
   document.getElementById('cd-csv-btn').style.display='none';
+  document.getElementById('cd-select-bar').style.display='none';
   document.getElementById('cd-fetch-btn').disabled=true;
 
   try{
@@ -1716,7 +1746,7 @@ async function fetchCompassDetail(){
     showCdStatus('info','<span class="spinner"></span> コンテナ明細取得中...');
     const BATCH=15;
     let workCTs=[], nullCTs=[];
-    const ctSel='crcf9_container_no,crcf9_work_date,crcf9_n_w,'+
+    const ctSel='crcf9_container_no,crcf9_work_date,crcf9_n_w,crcf9_purchase_payment_date,'+
                 '_crcf9_purchase_contract_id_value,_crcf9_item_id_value,_crcf9_booking_id_value';
     const ctExp='crcf9_parker_plant_id($select=crcf9_plant)';
 
@@ -1724,15 +1754,21 @@ async function fetchCompassDetail(){
       const batch=coGuids.slice(i,i+BATCH);
       const coF=batch.map(g=>`_crcf9_purchase_contract_id_value eq ${g}`).join(' or ');
       // 作業日あり
-      const r1=await dvGetAll(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date ge ${fromStr} and crcf9_work_date le ${toStr}&$select=${ctSel}&$expand=${ctExp}`);
-      // 作業日null
-      const r2=await dvGetAll(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date eq null&$select=${ctSel}&$expand=${ctExp}`);
-      workCTs.push(...r1);
-      nullCTs.push(...r2);
+      if(useMonth){
+        const r1=await dvGetAll(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date ge ${fromStr} and crcf9_work_date le ${toStr}${payF}&$select=${ctSel}&$expand=${ctExp}`);
+        // 作業日null → 後で cy_cut で絞る
+        const r2=await dvGetAll(`crcf9_container_informations?$filter=(${coF}) and crcf9_work_date eq null${payF}&$select=${ctSel}&$expand=${ctExp}`);
+        workCTs.push(...r1);
+        nullCTs.push(...r2);
+      }else{
+        // 全期間: 月で切らないので1クエリで済む
+        const r=await dvGetAll(`crcf9_container_informations?$filter=(${coF})${payF}&$select=${ctSel}&$expand=${ctExp}`);
+        workCTs.push(...r);
+      }
     }
 
     // ── Step 3.5: 作業日null → cy_cut でフィルタ
-    if(nullCTs.length){
+    if(useMonth && nullCTs.length){
       const bkGuids=[...new Set(nullCTs.map(ct=>ct._crcf9_booking_id_value).filter(Boolean))];
       const bkMap={};
       for(let i=0;i<bkGuids.length;i+=20){
@@ -1755,7 +1791,11 @@ async function fetchCompassDetail(){
       });
     }
 
-    if(!workCTs.length){ showCdStatus('warn','該当月のコンテナデータなし'); return; }
+    if(!workCTs.length){
+      showCdStatus('warn', useMonth ? '該当月のコンテナデータなし'
+        : (payStatus==='unpaid' ? '未払いのコンテナはありません（すべて支払済）' : 'コンテナデータなし'));
+      return;
+    }
 
     // ── Step 4: 単価取得 (purchase_detail)
     showCdStatus('info','<span class="spinner"></span> 単価データ取得中...');
@@ -1802,6 +1842,7 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
 
   let html=`<table>
   <thead><tr style="background:var(--surface2);">
+    <th style="width:30px;text-align:center"><input type="checkbox" id="cd-check-all" onclick="cdSelectAll(this.checked)"></th>
     <th style="white-space:nowrap">日付</th>
     <th>区分</th>
     <th style="white-space:nowrap">営業所</th>
@@ -1843,6 +1884,7 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
     const priceDisp = price!=null ? '¥'+price : '<span style="color:var(--warn)">単価未設定</span>';
     const amtDisp   = amt!=null   ? '¥'+amt.toLocaleString() : '—';
     html+=`<tr>
+      <td style="text-align:center"><input type="checkbox" class="cd-row-chk" data-i="${rows.length-1}" checked onclick="updateCdSelection()"></td>
       <td style="white-space:nowrap">${dateDisp}</td>
       <td style="white-space:nowrap">${badge}</td>
       <td style="font-size:11px;white-space:nowrap">${plant}</td>
@@ -1856,7 +1898,7 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
   }
 
   html+=`</tbody><tfoot><tr style="background:var(--surface2);font-weight:700;">
-    <td colspan="6" style="text-align:right;padding-right:12px;">計 ${cts.length}件${noPriceCnt?`<span style="color:var(--warn);font-weight:400;font-size:11px;"> (うち単価未設定 ${noPriceCnt}件 — 金額に未計上)</span>`:''}</td>
+    <td colspan="7" style="text-align:right;padding-right:12px;">計 ${cts.length}件${noPriceCnt?`<span style="color:var(--warn);font-weight:400;font-size:11px;"> (うち単価未設定 ${noPriceCnt}件 — 金額に未計上)</span>`:''}</td>
     <td style="text-align:right">${totalKg.toLocaleString()}</td>
     <td></td>
     <td style="text-align:right">¥${totalAmt.toLocaleString()}</td>
@@ -1875,11 +1917,74 @@ function renderCompassDetailTable(cts, contractMap, priceMap, packerCode){
   // CSVデータ保存
   window._cdRows=rows; window._cdMeta={packerCode};
 
+  // v4.2: 選択突合せバーを表示 (既定は全選択)
+  document.getElementById('cd-select-bar').style.display='block';
+  const ca=document.getElementById('cd-check-all'); if(ca) ca.checked=true;
+  updateCdSelection();
+
   showCdStatus('','');
 }
 
-function downloadCompassDetailCSV(){
+// ══════════════════════════════════════════
+// v4.2: 選択したCTと請求書金額の突合せ
+//   月をシステムが推定するのではなく、担当者が請求書を見てCTを選ぶ方式。
+// ══════════════════════════════════════════
+function cdSelectedRows(){
   const rows=window._cdRows||[];
+  return [...document.querySelectorAll('.cd-row-chk')]
+    .filter(c=>c.checked)
+    .map(c=>rows[Number(c.dataset.i)])
+    .filter(Boolean);
+}
+
+function cdSelectAll(on){
+  document.querySelectorAll('.cd-row-chk').forEach(c=>{c.checked=on;});
+  const ca=document.getElementById('cd-check-all'); if(ca) ca.checked=on;
+  updateCdSelection();
+}
+
+function updateCdSelection(){
+  const sel=cdSelectedRows();
+  const kg  = sel.reduce((s,r)=>s+(r.nwKg||0),0);
+  const amt = sel.reduce((s,r)=>s+(r.amt||0),0);
+  const noPrice = sel.filter(r=>r.amt==null).length;
+
+  const info=document.getElementById('cd-sel-info');
+  if(info) info.innerHTML=`選択 ${sel.length}件 / ${kg.toLocaleString()} kg / <span style="color:var(--accent)">¥${amt.toLocaleString()}</span>`
+    + (noPrice?`<span style="color:var(--warn);font-weight:400;font-size:11px;"> (単価未設定 ${noPrice}件は金額に未計上)</span>`:'');
+
+  // 全選択チェックの状態を同期
+  const all=[...document.querySelectorAll('.cd-row-chk')];
+  const ca=document.getElementById('cd-check-all');
+  if(ca) ca.checked = all.length>0 && all.every(c=>c.checked);
+
+  // 請求書金額との差額
+  const raw=(document.getElementById('cd-invoice-amt')?.value||'').replace(/[^\d-]/g,'');
+  const el=document.getElementById('cd-diff');
+  if(!el) return;
+  if(!raw){ el.innerHTML=`<span style="color:var(--text3);font-size:12px;">請求書金額を入力すると差額を表示します</span>`; return; }
+  const inv=Number(raw);
+  const diff=inv-amt;
+  el.innerHTML = diff===0
+    ? `<span style="color:var(--ok);font-weight:700;">✅ 一致 — 請求書 ¥${inv.toLocaleString()} = 選択分 ¥${amt.toLocaleString()}</span>`
+    : `<span style="color:var(--danger);font-weight:700;">❌ 差額 ¥${diff.toLocaleString()}</span>`
+      + `<span style="color:var(--text2);font-size:12px;"> — 請求書 ¥${inv.toLocaleString()} / 選択分 ¥${amt.toLocaleString()}`
+      + (diff>0?'（請求書の方が多い＝選択もれの可能性）':'（選択分の方が多い＝選び過ぎの可能性）')+`</span>`;
+}
+
+// 照合タブでOCRした請求書金額(税抜 = total_with_tax - tax)を取り込む
+function cdFillFromOCR(){
+  const d=S.invoiceData;
+  if(!d){ showCdStatus('warn','照合タブで請求書をまだ読み取っていません'); return; }
+  const amt=(d.total_with_tax||0)-(d.tax||0);
+  document.getElementById('cd-invoice-amt').value=amt;
+  updateCdSelection();
+  showCdStatus('', '');
+}
+
+function downloadCompassDetailCSV(){
+  const rows=cdSelectedRows();   // v4.2: 選択したCTのみ出力
+  if(!rows.length){ showCdStatus('warn','CTが選択されていません'); return; }
   const code=window._cdMeta?.packerCode||'';
   const ym=document.getElementById('cd-month').value;
   const header='日付,区分,営業所,CT番号,CO番号,品目,重量(kg),単価(¥/kg),金額(¥)';
