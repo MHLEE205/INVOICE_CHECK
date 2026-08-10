@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v5.6</title>
+<title>LEENAI 請求書確認ツール v5.7</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.6</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.7</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v5.6 (2026-08-09)</div>
+  <div class="version">請求書確認ツール v5.7 (2026-08-09)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -185,7 +185,15 @@ tr:hover td{background:var(--surface3);}
   <div class="folder-banner" id="folderBanner">
     <span style="font-size:20px;">📁</span>
     <div class="folder-path" id="folderPath">請求書フォルダが選択されていません</div>
-    <button class="btn btn-ghost btn-sm" onclick="selectFolder()">フォルダ選択</button>
+    <!-- v5.7: SharePoint フォルダ選択 -->
+    <div id="sp-folder-bar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--text2);">☁️ SP:</span>
+      <select id="sp-folder-select" onchange="onSPFolderChange()"
+        style="font-size:12px;padding:4px 8px;background:var(--surface1);border:1px solid var(--border);color:var(--text);border-radius:5px;min-width:130px;">
+        <option value="">-- 月を選択 --</option>
+      </select>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="selectFolder()">📂 ローカル</button>
   </div>
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;">
@@ -466,12 +474,20 @@ window.onload = async () => {
   const safe = (label, fn) => { try{ fn(); }catch(e){ console.error('init失敗:', label, e); } };
 
   // OAuthコールバックは何よりも先に処理する
+  // v5.7: Graph コールバック (state='graph_'prefix) と DV コールバックを分岐
   if (location.search.includes('code=') || location.search.includes('error=')) {
+    const _cbState = new URLSearchParams(location.search).get('state') || '';
     const gs0 = document.getElementById('gateStatus');
-    if (gs0) gs0.textContent = '認証中...';
-    try{ await handleD365Callback(); }catch(e){ console.error('OAuth callback失敗', e); }
+    if (_cbState.startsWith('graph_')) {
+      if (gs0) gs0.textContent = 'SharePoint認証中...';
+      try{ await handleGraphCallback(); }catch(e){ console.error('Graph callback失敗', e); }
+    } else {
+      if (gs0) gs0.textContent = '認証中...';
+      try{ await handleD365Callback(); }catch(e){ console.error('OAuth callback失敗', e); }
+    }
   }
 
+  graphLoadToken(); // v5.7: 既存 Graph トークン復元
   safe('initCdPackerSelect', initCdPackerSelect); // v3.8
   safe('initCdPaymSelect', initCdPaymSelect); // v5.0
   // テーマ復元
@@ -593,6 +609,131 @@ function isValidYM(s){
 // COMPASS データは Dataverse 直接呼び出しに一元化 (v3.2)
 // Excel(SheetJS) 経由の読込は廃止 → fetchCompassFromD365() を参照
 // ══════════════════════════════════════════
+
+// ══════════════════════════════════════════
+// v5.7: Graph API 認証 + SharePoint フォルダ
+// ══════════════════════════════════════════
+function graphTokenValid(){ return graphToken&&Date.now()<graphExpiry; }
+
+function graphSaveVerifier(v,st){
+  localStorage.setItem('graph_pkce',JSON.stringify({v,st,expires:Date.now()+10*60*1000}));
+}
+function graphLoadVerifier(){
+  try{const d=JSON.parse(localStorage.getItem('graph_pkce')||'null');
+    if(d&&Date.now()<d.expires) return d;}catch{}
+  return null;
+}
+function graphClearVerifier(){ localStorage.removeItem('graph_pkce'); }
+function graphSaveToken(t,expiresIn){
+  graphToken=t; graphExpiry=Date.now()+(expiresIn-60)*1000;
+  localStorage.setItem('graph_token',t);
+  localStorage.setItem('graph_expiry',graphExpiry.toString());
+}
+function graphLoadToken(){
+  const t=localStorage.getItem('graph_token');
+  const e=parseInt(localStorage.getItem('graph_expiry')||'0');
+  if(t&&Date.now()<e){graphToken=t;graphExpiry=e;return true;}
+  return false;
+}
+
+async function startGraphLogin(){
+  const arr=new Uint8Array(48); crypto.getRandomValues(arr);
+  const verifier=btoa(String.fromCharCode(...arr)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier));
+  const challenge=btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const st=verifier.slice(0,16);
+  graphSaveVerifier(verifier,st);
+  const p=new URLSearchParams({
+    client_id:DV_CLIENT_ID, response_type:'code',
+    redirect_uri:DV_REDIRECT, scope:GRAPH_SCOPE,
+    state:'graph_'+st, code_challenge:challenge, code_challenge_method:'S256',
+  });
+  location.href=`https://login.microsoftonline.com/${DV_TENANT_ID}/oauth2/v2.0/authorize?${p}`;
+}
+
+async function handleGraphCallback(){
+  const params=new URLSearchParams(location.search);
+  const code=params.get('code'), oaErr=params.get('error');
+  history.replaceState({},'',DV_REDIRECT);
+  if(oaErr){openLoginGate(`SharePoint認証が拒否されました: ${params.get('error_description')||oaErr}`);return;}
+  if(!code) return;
+  const d=graphLoadVerifier();
+  if(!d){openLoginGate('SharePoint認証情報が失われました。もう一度ログインしてください。');return;}
+  graphClearVerifier();
+  const gs=document.getElementById('gateStatus');
+  if(gs) gs.textContent='SharePoint認証中...';
+  const res=await fetch(`https://login.microsoftonline.com/${DV_TENANT_ID}/oauth2/v2.0/token`,{
+    method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:new URLSearchParams({
+      client_id:DV_CLIENT_ID,grant_type:'authorization_code',
+      code,redirect_uri:DV_REDIRECT,code_verifier:d.v,scope:GRAPH_SCOPE,
+    })
+  });
+  const data=await res.json();
+  if(data.error){openLoginGate(`SharePoint認証エラー: ${data.error_description||data.error}`);return;}
+  graphSaveToken(data.access_token,data.expires_in);
+  closeLoginGate();
+  const dashInfo=document.getElementById('dashCompassInfo');
+  if(dashInfo) dashInfo.innerHTML='<span class="spinner"></span> データ取得中...';
+  await fetchCompassFromD365();
+  await initSPFolderDropdown();
+}
+
+async function graphGet(path){
+  if(!graphTokenValid()) throw new Error('SharePoint未ログイン — 再ログインしてください');
+  const res=await fetch(`https://graph.microsoft.com/v1.0${path}`,
+    {headers:{'Authorization':`Bearer ${graphToken}`,'Accept':'application/json'}});
+  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(`Graph ${res.status}: ${e?.error?.message||res.statusText}`);}
+  return res.json();
+}
+
+async function loadSPFolders(){
+  const data=await graphGet(`/drives/${SP_DRIVE_ID}/root:/${SP_INV_FOLDER}:/children?\$filter=folder ne null&\$select=id,name&\$orderby=name desc&\$top=60`);
+  return (data.value||[]).filter(f=>f.name.includes('仕入れ'));
+}
+async function loadSPFiles(folderId){
+  const data=await graphGet(`/drives/${SP_DRIVE_ID}/items/${folderId}/children?\$select=id,name,size&\$orderby=name`);
+  return (data.value||[]).filter(f=>f.name.toLowerCase().endsWith('.pdf'));
+}
+async function downloadSPFileB64(fileId){
+  if(!graphTokenValid()) throw new Error('SharePoint未ログイン');
+  const res=await fetch(`https://graph.microsoft.com/v1.0/drives/${SP_DRIVE_ID}/items/${fileId}/content`,
+    {headers:{'Authorization':`Bearer ${graphToken}`}});
+  if(!res.ok) throw new Error(`SPダウンロード失敗 ${res.status}`);
+  const buf=await res.arrayBuffer(); const bytes=new Uint8Array(buf);
+  let bin=''; for(const b of bytes) bin+=String.fromCharCode(b);
+  return btoa(bin);
+}
+
+async function initSPFolderDropdown(){
+  const bar=document.getElementById('sp-folder-bar');
+  const sel=document.getElementById('sp-folder-select');
+  if(!bar||!sel) return;
+  try{
+    const folders=await loadSPFolders();
+    sel.innerHTML='<option value="">-- 月フォルダを選択 --</option>';
+    folders.forEach(f=>{
+      const o=document.createElement('option');
+      o.value=f.id; o.textContent=f.name; sel.appendChild(o);
+    });
+    if(folders.length){sel.value=folders[0].id; await onSPFolderChange();}
+    bar.style.display='flex';
+  }catch(e){ console.warn('SPフォルダ取得失敗:',e); }
+}
+
+async function onSPFolderChange(){
+  const folderId=document.getElementById('sp-folder-select')?.value;
+  if(!folderId) return;
+  const files=await loadSPFiles(folderId);
+  S.pdfFiles=S.pdfFiles||{};
+  Object.keys(S.pdfFiles).forEach(k=>{if(S.pdfFiles[k]._sp) delete S.pdfFiles[k];});
+  files.forEach(f=>{
+    const packer=extractPackerFromFilename(f.name);
+    if(!packer) return;
+    S.pdfFiles[packer]={name:f.name,spId:f.id,handle:null,_sp:true};
+  });
+  renderDashboard();
+}
 
 // ══════════════════════════════════════════
 // 月判定 (DEC-010: Date객체前提)
@@ -898,8 +1039,15 @@ async function _doMatch(packer,ym4){
   status.innerHTML='<span class="spinner"></span> PDFを読込中...';
 
   try{
-    const file=await pdfEntry.handle.getFile();
-    const b64=await fileToB64(file);
+    // v5.7: SP or ローカル
+    let b64;
+    if(pdfEntry._sp){
+      status.innerHTML='<span class="spinner"></span> SharePointからダウンロード中...';
+      b64=await downloadSPFileB64(pdfEntry.spId);
+    }else{
+      const file=await pdfEntry.handle.getFile();
+      b64=await fileToB64(file);
+    }
     fill.style.width='40%';
     status.innerHTML='<span class="spinner"></span> AI解析中...';
 
@@ -1285,7 +1433,15 @@ async function loadInvoicePDF(file){
   const filenameCode=matchExtractedToPacker(extractPackerFromFilename(file.name));
   const filenameYM=extractYMFromFilename(file.name);
 
-  const b64=await fileToB64(file);
+  // v5.7: SP or ローカル
+  let b64;
+  const spEntry=S.pdfFiles?.[S.selectedPacker];
+  if(spEntry?._sp){
+    status.innerHTML='<span class="spinner"></span> SharePointからダウンロード中...';
+    b64=await downloadSPFileB64(spEntry.spId);
+  }else{
+    b64=await fileToB64(file);
+  }
   fill.style.width='50%';
 
   try{
@@ -2496,6 +2652,12 @@ function updateThemeBtn(theme) {
 const DV_CLIENT_ID   = 'f071a165-5e9b-44bf-b6a1-baba654524db';
 const DV_TENANT_ID   = 'a56988ff-c2b8-4df8-9727-889ad4205198';
 const DV_SCOPE       = 'https://orgde512c6f.crm7.dynamics.com/user_impersonation';
+
+// v5.7: Graph API (SharePoint)
+const GRAPH_SCOPE   = 'https://graph.microsoft.com/Files.Read.All offline_access';
+const SP_DRIVE_ID   = 'b!ZK58_9YllU-vETQD3Xz0TbOInXbVCXJHnQ2280KJBArFLeM_18EgRbSeoO-TW__U';
+const SP_INV_FOLDER = encodeURIComponent('古紙/-. AI 活用/E-01-請求書');
+let graphToken=null, graphExpiry=0;
 const DV_API         = 'https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
 // ⚠️ REDIRECT_URI는 하드코딩 고정 (동적 생성 절대 금지)
 const DV_REDIRECT    = 'https://mhlee205.github.io/INVOICE_CHECK/';
@@ -2687,9 +2849,16 @@ async function handleD365Callback() {
       const err = new Error(msg); err.friendly = true; throw err;
     }
     dvSetToken(await res.json());   // v4.1: refresh_token / expires_in も保持
-    closeLoginGate();   // トークン取得成功時のみゲート解除
+    // v5.7: DV完了後、Graph トークンがなければ Graph ログインへ自動遷移
+    if(!graphTokenValid()&&!graphLoadToken()){
+      if(gs) gs.textContent='SharePoint認証へ移動中...';
+      await startGraphLogin(); // リダイレクト発生 → ここで停止
+      return;
+    }
+    closeLoginGate();   // Graph も済み → 通常起動
     if (dashInfo) dashInfo.innerHTML = '<span style="color:var(--ok)">✅ D365認証完了 — データ取得中...</span>';
     await fetchCompassFromD365();
+    await initSPFolderDropdown(); // v5.7
   } catch(e) {
     // 認証失敗時はゲートを開けたまま、ゲート上にエラー表示 (ログイン必須)
     const shown = e.friendly ? e.message : ('認証エラー: ' + String(e.message||'').slice(0,120));
