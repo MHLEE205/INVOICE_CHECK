@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v5.7</title>
+<title>LEENAI 請求書確認ツール v5.8</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.7</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.8</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v5.7 (2026-08-09)</div>
+  <div class="version">請求書確認ツール v5.8 (2026-08-10)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -672,6 +672,17 @@ async function handleGraphCallback(){
   const data=await res.json();
   if(data.error){openLoginGate(`SharePoint認証エラー: ${data.error_description||data.error}`);return;}
   graphSaveToken(data.access_token,data.expires_in);
+  // v5.7 fix: Graph リダイレクト前に退避した DV refresh_token を復元してトークン再発行
+  const savedDvRefresh=localStorage.getItem('dv_refresh_temp');
+  if(savedDvRefresh){
+    dvRefreshToken=savedDvRefresh;
+    localStorage.removeItem('dv_refresh_temp');
+    const dvOk=await dvRefreshAccessToken(); // DV アクセストークン再発行
+    if(!dvOk){
+      openLoginGate('COMPASS認証の復元に失敗しました。もう一度ログインしてください。');
+      return;
+    }
+  }
   closeLoginGate();
   const dashInfo=document.getElementById('dashCompassInfo');
   if(dashInfo) dashInfo.innerHTML='<span class="spinner"></span> データ取得中...';
@@ -2851,6 +2862,8 @@ async function handleD365Callback() {
     dvSetToken(await res.json());   // v4.1: refresh_token / expires_in も保持
     // v5.7: DV完了後、Graph トークンがなければ Graph ログインへ自動遷移
     if(!graphTokenValid()&&!graphLoadToken()){
+      // Graph リダイレクト前に DV refresh_token を localStorage に退避
+      if(dvRefreshToken) localStorage.setItem('dv_refresh_temp', dvRefreshToken);
       if(gs) gs.textContent='SharePoint認証へ移動中...';
       await startGraphLogin(); // リダイレクト発生 → ここで停止
       return;
