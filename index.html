@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v6.3</title>
+<title>LEENAI 請求書確認ツール v6.4</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v6.3</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v6.4</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v6.3 (2026-08-10)</div>
+  <div class="version">請求書確認ツール v6.4 (2026-08-10)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -187,7 +187,7 @@ tr:hover td{background:var(--surface3);}
     <div class="folder-path" id="folderPath">請求書フォルダが選択されていません</div>
     <button class="btn btn-ghost btn-sm" onclick="selectFolder()">📂 ローカル</button>
   </div>
-  <!-- v6.3: sp-folder-bar は folderBanner の外に独立 (innerHTML置換で消えないよう) -->
+  <!-- v6.4: sp-folder-bar は folderBanner の外に独立 (innerHTML置換で消えないよう) -->
   <div id="sp-folder-bar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 2px;">
     <span style="font-size:11px;color:var(--text2);">☁️ SP:</span>
     <select id="sp-folder-select" onchange="onSPFolderChange()"
@@ -902,7 +902,7 @@ function parseYM(s){
 async function renderDashboard(ym4){
   const content=document.getElementById('dashContent');
   content.innerHTML='<div class="info-text">読込中...</div>';
-  // DEC-014 + v6.3: ローカルフォルダ or SP モード判定
+  // DEC-014 + v6.4: ローカルフォルダ or SP モード判定
   const monthHandle=S.currentMonthHandle;
   const hasSPFiles=S.pdfFiles&&Object.values(S.pdfFiles).some(f=>f._sp);
   if(!monthHandle&&!hasSPFiles){content.innerHTML='<div class="empty-state"><div class="ei">📂</div><div>フォルダを選択してください</div></div>';return;}
@@ -1079,7 +1079,7 @@ async function _doMatch(packer,ym4){
     document.getElementById('matchVendorPattern').innerHTML=vm?`<span class="ptag pt-${vm.type.toLowerCase()}">${vm.type}型</span> ${PATTERN_LABEL[vm.type]||''}`:'';}
 
   const pdfEntry=S.pdfFiles?.[packer];
-  if(!pdfEntry?.handle){
+  if(!pdfEntry?.handle && !pdfEntry?._sp){
     activateStep('step2');
     return;
   }
@@ -1109,7 +1109,7 @@ async function _doMatch(packer,ym4){
     const vm=VENDOR_MASTER[packer];
     const pattern=vm?.type||'E';
     const summaryOnly=vm?.ocr_mode==='summary';
-    const result=await callClaude(b64,file.type||'application/pdf',buildOCRPrompt(pattern,false,summaryOnly), summaryOnly?4000:16000, // v3.5
+    const result=await callClaude(b64,pdfEntry?._sp?'application/pdf':(file?.type||'application/pdf'),buildOCRPrompt(pattern,false,summaryOnly), summaryOnly?4000:16000, // v3.5
       chars=>{fill.style.width=`${Math.min(40+Math.floor(chars/120),94)}%`;status.innerHTML=`<span class="spinner"></span> AI解析中… ${chars.toLocaleString()}字`;});
     fill.style.width='100%';
 
