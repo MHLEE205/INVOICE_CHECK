@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v6.5</title>
+<title>LEENAI 請求書確認ツール v6.6</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v6.5</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v6.6</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v6.5 (2026-08-10)</div>
+  <div class="version">請求書確認ツール v6.6 (2026-08-10)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -2519,38 +2519,53 @@ function updateInvSelection(){
 // v5.5: 精密照合 — CT別4分類 (✅❌⚠️📋)
 // ══════════════════════════════════════════
 function renderPrecisionMatch(invoiceData, ctRows){
-  const items=(invoiceData.items||[]).filter(it=>it.amount);
-  if(!items.length||!ctRows.length) return '';
+  const allItems=(invoiceData.items||[]).filter(it=>it.amount);
+  if(!allItems.length||!ctRows.length) return '';
 
+  // v6.6: 上段(S._compassFiltered)で既に✅マッチ済みのitemsを除外
+  // 中量+金額が一致するものは上段でOK → 精密照合不要
+  const cFiltered=S._compassFiltered||[];
+  const usedC=new Set();
+  const errorItems=allItems.filter(it=>{
+    const invAmt=it.amount||0, invKg=it.weight_kg||0;
+    for(let i=0;i<cFiltered.length;i++){
+      if(usedC.has(i)) continue;
+      const r=cFiltered[i];
+      const rAmt=r.Amount||Math.round((r.Net_Weight||0)*1000*(r.purchase_price||0));
+      const rKg=(r.Net_Weight||0)*1000;
+      if(Math.abs(rAmt-invAmt)<1&&Math.abs(rKg-invKg)<0.5){usedC.add(i);return false;}
+    }
+    return true; // 未マッチ → 精密照合対象
+  });
+
+  if(!errorItems.length){
+    return `<div style="margin-top:14px;padding:8px 12px;background:var(--surface2);border-radius:6px;font-size:12px;color:var(--ok);">
+      ✅ 精密照合: 全件 上段と一致 — 差異なし
+    </div>`;
+  }
+
+  // v6.6: ❌/未登録 items のみ _cdRows から逆算探索
+  const items=errorItems;
   const packer=S.selectedPacker;
   const vm=VENDOR_MASTER[packer];
 
-  // ── 識別キー抽出 (清求書side)
   const getInvKey=it=>{
     if(it.container_no) return {key:it.container_no,type:'CT'};
     if(it.booking_no)   return {key:it.booking_no,  type:'BKG'};
     if(it.co_no)        return {key:it.co_no,        type:'CO'};
     return                     {key:it.item||'',     type:'ITEM'};
   };
-
-  // ── CT行のキー取得 (COMPASS side)
-  const getCTKey=(ct,type)=>{
-    if(type==='CT')  return ct.ctNo||'';
-    if(type==='CO')  return ct.coNo||'';
-    if(type==='BKG') return ct.bkgNo||'';   // v5.6: 旧実装は存在しない_ctから予約GUIDを読み、CO番号にフォールバックしていた
+  const getCTKey=(ct,ty)=>{
+    if(ty==='CT')  return ct.ctNo||'';
+    if(ty==='CO')  return ct.coNo||'';
+    if(ty==='BKG') return ct.bkgNo||ct.coNo||'';
     return ct.itemName||'';
   };
 
-  // ── マッチング
-  const used=new Set();
-  const rows=[];
-
+  const used=new Set(); const rows=[];
   for(const it of items){
     const {key:invKey,type:keyType}=getInvKey(it);
-    const invKg=it.weight_kg||0;
-    const invAmt=it.amount||0;
-    const invPrice=it.unit_price||0;
-
+    const invKg=it.weight_kg||0, invAmt=it.amount||0, invPrice=it.unit_price||0;
     let bestIdx=-1;
     for(let i=0;i<ctRows.length;i++){
       if(used.has(i)) continue;
@@ -2562,39 +2577,28 @@ function renderPrecisionMatch(invoiceData, ctRows){
       const amtMatch=ct.amt&&invAmt&&ct.amt===invAmt;
       if(keyMatch||(keyType==='ITEM'&&amtMatch)){bestIdx=i;break;}
     }
-
     if(bestIdx>=0){
       used.add(bestIdx);
       const ct=ctRows[bestIdx];
-      const ctKg=ct.nwKg||0;
-      const ctPrice=ct.price||0;
-      const ctAmt=ct.amt||0;
+      const ctKg=ct.nwKg||0, ctPrice=ct.price||0;
       const kgOk=Math.abs(ctKg-invKg)<0.5;
       const priceOk=!invPrice||!ctPrice||Math.abs(ctPrice-invPrice)<0.01;
-      const status=(kgOk&&priceOk)?'✅':'❌';
       const kgDiff=Math.round(ctKg-invKg);
-      rows.push({status,invKey,ct,invKg,invAmt,invPrice,ctKg,ctAmt,ctPrice,kgOk,priceOk,kgDiff});
+      rows.push({status:(kgOk&&priceOk)?'✅':'❌',invKey,ct,invKg,invAmt,invPrice,ctKg,kgDiff,ctPrice,kgOk,priceOk});
     }else{
-      // 請求書にあるがCOMPASS CT 未マッチ → ⚠️ 組合候補
-      rows.push({status:'⚠️',invKey,ct:null,invKg,invAmt,invPrice,ctKg:0,ctAmt:0,ctPrice:0});
+      rows.push({status:'⚠️',invKey,ct:null,invKg,invAmt,invPrice,ctKg:0,kgDiff:0,ctPrice:0,kgOk:false,priceOk:false});
     }
   }
-
-  // COMPASS有/請求書無 CT → 📋
   for(let i=0;i<ctRows.length;i++){
-    if(!used.has(i)){
-      rows.push({status:'📋',invKey:null,ct:ctRows[i],invKg:0,invAmt:0,invPrice:0});
-    }
+    if(!used.has(i)) rows.push({status:'📋',invKey:null,ct:ctRows[i],invKg:0,invAmt:0,invPrice:0});
   }
 
-  // ── 集計
   const cnt={'✅':0,'❌':0,'⚠️':0,'📋':0};
-  rows.forEach(r=>{ if(cnt[r.status]!==undefined) cnt[r.status]++; });
+  rows.forEach(r=>{if(cnt[r.status]!==undefined)cnt[r.status]++;});
 
-  // ── HTML
   let html=`<div style="margin-top:16px;border-top:2px solid var(--border);padding-top:14px;">
     <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px;letter-spacing:.5px;">
-      🔍 精密照合 — CT別4分類
+      🔍 精密照合 — ❌未登録/差異のみ対象 (${errorItems.length}件)
     </div>
     <div style="display:flex;gap:12px;margin-bottom:10px;flex-wrap:wrap;font-size:12px;">
       <span style="color:var(--ok);font-weight:600">✅ 一致 ${cnt['✅']}件</span>
@@ -2604,13 +2608,9 @@ function renderPrecisionMatch(invoiceData, ctRows){
     </div>
     <div class="tbl-wrap" style="max-height:440px;overflow-y:auto;"><table>
     <thead><tr style="background:var(--surface2);">
-      <th style="text-align:center">状態</th>
-      <th>識別キー</th>
-      <th>品目</th>
-      <th style="text-align:right">請求kg</th>
-      <th style="text-align:right">COMPASSkg</th>
-      <th style="text-align:right">請求単価</th>
-      <th style="text-align:right">COMPASS単価</th>
+      <th style="text-align:center">状態</th><th>識別キー</th><th>品目</th>
+      <th style="text-align:right">請求kg</th><th style="text-align:right">COMPASSkg</th>
+      <th style="text-align:right">請求単価</th><th style="text-align:right">COMPASS単価</th>
       <th>差異</th>
     </tr></thead><tbody>`;
 
@@ -2628,11 +2628,8 @@ function renderPrecisionMatch(invoiceData, ctRows){
       if(!r.kgOk&&r.kgDiff!=null) parts.push(`<span style="color:var(--warn)">重量 ${r.kgDiff>0?'+':''}${r.kgDiff.toLocaleString()}kg</span>`);
       if(!r.priceOk) parts.push(`<span style="color:var(--error)">単価差</span>`);
       diffHtml=parts.join(' ')||'—';
-    } else if(r.status==='⚠️'){
-      diffHtml=`<span style="color:var(--warn)">組合候補</span>`;
-    } else if(r.status==='📋'){
-      diffHtml=`<span style="color:var(--text2)">請求書無</span>`;
-    }
+    }else if(r.status==='⚠️') diffHtml=`<span style="color:var(--warn)">組合候補</span>`;
+    else if(r.status==='📋') diffHtml=`<span style="color:var(--text2)">請求書無</span>`;
     const rowBg=r.status==='❌'?'background:color-mix(in srgb,var(--error) 8%,transparent);':
                 r.status==='⚠️'?'background:color-mix(in srgb,var(--warn) 8%,transparent);':'';
     html+=`<tr style="${rowBg}">
@@ -2649,7 +2646,6 @@ function renderPrecisionMatch(invoiceData, ctRows){
   html+=`</tbody></table></div></div>`;
   return html;
 }
-
 
 function resetMatch(){
   S._compassFiltered=[];S.invoiceData=null;S.selectedPacker='';S.targetMonth=0;S.lastMatchResult=null;S.isPrecision=false; // v3.5
