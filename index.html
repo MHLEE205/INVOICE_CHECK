@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v6.0</title>
+<title>LEENAI 請求書確認ツール v6.1</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v6.0</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v6.1</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v6.0 (2026-08-10)</div>
+  <div class="version">請求書確認ツール v6.1 (2026-08-10)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -185,16 +185,16 @@ tr:hover td{background:var(--surface3);}
   <div class="folder-banner" id="folderBanner">
     <span style="font-size:20px;">📁</span>
     <div class="folder-path" id="folderPath">請求書フォルダが選択されていません</div>
-    <!-- v5.7: SharePoint フォルダ選択 -->
-    <div id="sp-folder-bar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-      <span style="font-size:11px;color:var(--text2);">☁️ SP:</span>
-      <select id="sp-folder-select" onchange="onSPFolderChange()"
-        style="font-size:12px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:5px;min-width:150px;">
-        <option value="">— 未接続 —</option>
-      </select>
-      <button id="sp-connect-btn" class="btn btn-ghost btn-sm" onclick="connectSP()" title="SharePointに接続">🔗 SP接続</button>
-    </div>
     <button class="btn btn-ghost btn-sm" onclick="selectFolder()">📂 ローカル</button>
+  </div>
+  <!-- v6.1: sp-folder-bar は folderBanner の外に独立 (innerHTML置換で消えないよう) -->
+  <div id="sp-folder-bar" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 2px;">
+    <span style="font-size:11px;color:var(--text2);">☁️ SP:</span>
+    <select id="sp-folder-select" onchange="onSPFolderChange()"
+      style="font-size:12px;padding:4px 8px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:5px;min-width:150px;">
+      <option value="">— 未接続 —</option>
+    </select>
+    <button id="sp-connect-btn" class="btn btn-ghost btn-sm" onclick="connectSP()" title="SharePointに接続">🔗 SP接続</button>
   </div>
 
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;">
