@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v5.8</title>
+<title>LEENAI 請求書確認ツール v5.9</title>
 <style>
 /* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
 /* ── DARK 테마 (기본) ── */
@@ -149,7 +149,7 @@ tr:hover td{background:var(--surface3);}
 <div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
   <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.8</div>
+  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v5.9</div>
   <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
   <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
   <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
@@ -159,7 +159,7 @@ tr:hover td{background:var(--surface3);}
 <header>
   <div class="logo">LEEN<span>AI</span></div>
   <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v5.8 (2026-08-10)</div>
+  <div class="version">請求書確認ツール v5.9 (2026-08-10)</div>
   <div class="api-mini">
     <span style="color:var(--text2);font-size:11px;">API KEY</span>
     <div class="api-dot" id="apiDot"></div>
@@ -501,6 +501,10 @@ window.onload = async () => {
     o.textContent=`${v.ja} [${v.type}型] — ${code}`; sel.appendChild(o);
   });
   await tryRestoreFolder();
+  // v5.8 fix: 既存 Graph トークンあれば SP ドロップダウン初期化
+  if(graphLoadToken()){
+    initSPFolderDropdown().catch(e=>console.warn('SP初期化失敗:',e));
+  }
 };
 function saveApiKey(){
   const k=document.getElementById('apiKeyInput').value.trim();
@@ -686,8 +690,8 @@ async function handleGraphCallback(){
   closeLoginGate();
   const dashInfo=document.getElementById('dashCompassInfo');
   if(dashInfo) dashInfo.innerHTML='<span class="spinner"></span> データ取得中...';
-  await fetchCompassFromD365();
-  await initSPFolderDropdown();
+  try{ await fetchCompassFromD365(); }catch(e){ console.warn('COMPASS取得失敗:',e); }
+  try{ await initSPFolderDropdown(); }catch(e){ console.warn('SPフォルダ初期化失敗:',e); }
 }
 
 async function graphGet(path){
@@ -699,8 +703,10 @@ async function graphGet(path){
 }
 
 async function loadSPFolders(){
-  const data=await graphGet(`/drives/${SP_DRIVE_ID}/root:/${SP_INV_FOLDER}:/children?\$filter=folder ne null&\$select=id,name&\$orderby=name desc&\$top=60`);
-  return (data.value||[]).filter(f=>f.name.includes('仕入れ'));
+  // v5.8 fix: /は폴더구분자이므로각フォルダ名だけencodeし/は維持
+  const encoded=SP_INV_FOLDER.split('/').map(encodeURIComponent).join('/');
+  const data=await graphGet(`/drives/${SP_DRIVE_ID}/root:/${encoded}:/children?$select=id,name&$orderby=name desc&$top=60`);
+  return (data.value||[]).filter(f=>f.name&&f.name.includes('仕入れ'));
 }
 async function loadSPFiles(folderId){
   const data=await graphGet(`/drives/${SP_DRIVE_ID}/items/${folderId}/children?\$select=id,name,size&\$orderby=name`);
@@ -2667,7 +2673,7 @@ const DV_SCOPE       = 'https://orgde512c6f.crm7.dynamics.com/user_impersonation
 // v5.7: Graph API (SharePoint)
 const GRAPH_SCOPE   = 'https://graph.microsoft.com/Files.Read.All offline_access';
 const SP_DRIVE_ID   = 'b!ZK58_9YllU-vETQD3Xz0TbOInXbVCXJHnQ2280KJBArFLeM_18EgRbSeoO-TW__U';
-const SP_INV_FOLDER = encodeURIComponent('古紙/-. AI 活用/E-01-請求書');
+const SP_INV_FOLDER = '古紙/-. AI 活用/E-01-請求書'; // v5.8 fix: raw (/ を%2Fにしない)
 let graphToken=null, graphExpiry=0;
 const DV_API         = 'https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
 // ⚠️ REDIRECT_URI는 하드코딩 고정 (동적 생성 절대 금지)
@@ -2871,7 +2877,7 @@ async function handleD365Callback() {
     closeLoginGate();   // Graph も済み → 通常起動
     if (dashInfo) dashInfo.innerHTML = '<span style="color:var(--ok)">✅ D365認証完了 — データ取得中...</span>';
     await fetchCompassFromD365();
-    await initSPFolderDropdown(); // v5.7
+    try{ await initSPFolderDropdown(); }catch(e){ console.warn('SP初期化失敗:',e); } // v5.8
   } catch(e) {
     // 認証失敗時はゲートを開けたまま、ゲート上にエラー表示 (ログイン必須)
     const shown = e.friendly ? e.message : ('認証エラー: ' + String(e.message||'').slice(0,120));
