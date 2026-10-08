@@ -3,44 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LEENAI 請求書確認ツール v6.6</title>
+<link id="leenaiFavicon" rel="icon">
+<link rel="stylesheet" href="https://mhlee205.github.io/LEENAI_COMMON/v1/leenai-common.css">
+<script src="https://mhlee205.github.io/LEENAI_COMMON/v1/leenai-common.js"></script>
+<script>if(!window.LEENAI){document.addEventListener('DOMContentLoaded',function(){document.body.innerHTML='<div style="padding:40px;font-family:sans-serif">共通ファイルの読み込みに失敗しました。ページを再読み込みしてください。</div>';});}</script>
 <style>
-/* ══ 標準 4テーマ トークン (LEENAI_TOOL作成時注意事項 v1.8 §13 準拠) ══ */
-/* ── DARK 테마 (기본) ── */
-:root {
-  --bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--surface3:#2a2f46;--border:#2e3350;
-  --accent:#4f8ef7;--ok:#22c55e;--warn:#f59e0b;--danger:#ef4444;--info:#38bdf8;
-  --error:var(--danger);           /* 기존 코드 호환용 별칭 */
-  --text:#e2e8f0;--text2:#8892a4;--text3:#4a5568;
+/* ── E-01 固有 CSS ── */
+:root{
+  --error:var(--danger);  /* 既存コード互換 */
   --radius:10px;
 }
-/* ── LIGHT 테마 — MS Fluent ── */
-[data-theme="light"] {
-  --bg:#FAF9F8;--surface:#FFFFFF;--surface2:#F3F2F1;--surface3:#EDEBE9;--border:#E1DFDD;
-  --text:#201F1E;--text2:#3B3A39;--text3:#706E6C;
-  --accent:#0F6CBD;
-  --ok:#16a34a;--warn:#d97706;--danger:#dc2626;--info:#0284c7;
-}
-/* ── LEENAI 테마 — Calm 세이지 그린 ── */
-[data-theme="leenai"] {
-  --bg:#DCEBD8;--surface:#F0F5EF;--surface2:#D4E8D0;--surface3:#C5DCC0;--border:#A8C8A3;
-  --text:#1F2A22;--text2:#2E4032;--text3:#4E6055;
-  --accent:#2F6B45;--accent2:#3F6FA8;
-  --ok:#16a34a;--warn:#d97706;--danger:#dc2626;--info:#0284c7;
-}
-/* ── FOCUS 테마 — 청회색 집중 모드 ── */
-[data-theme="focus"] {
-  --bg:#D8DDE8;--surface:#EDF0F5;--surface2:#CDD4E0;--surface3:#BEC8D6;--border:#9DAABE;
-  --text:#202733;--text2:#2E3A4A;--text3:#4E5D6E;
-  --accent:#315F9E;--accent2:#2F7D6A;
-  --ok:#16a34a;--warn:#d97706;--danger:#dc2626;--info:#0284c7;
-}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Segoe UI','Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:13px;}
-header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;}
-.logo{font-size:17px;font-weight:700;letter-spacing:1px;}.logo span{color:var(--accent);}
-.version{color:var(--text2);font-size:11px;background:var(--surface2);padding:2px 8px;border-radius:4px;}
-.api-mini{margin-left:auto;display:flex;align-items:center;gap:8px;}
+body{min-height:100vh;font-size:13px;}
+.api-mini{display:flex;align-items:center;gap:8px;padding:6px 0;}
 .api-mini input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;width:220px;font-size:12px;}
 .api-mini input:focus{outline:none;border-color:var(--accent);}
 .api-dot{width:8px;height:8px;border-radius:50%;background:var(--text3);}.api-dot.ok{background:var(--ok);}
@@ -52,7 +27,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .date-badge{display:inline-block;padding:1px 7px;border-radius:3px;font-size:10px;font-weight:700;white-space:nowrap;}
 .date-badge.work{background:var(--ok);color:#fff;}
 .date-badge.cycut{background:var(--warn);color:#fff;}
-.tab-content{background:var(--surface);border:1px solid var(--border);border-top:none;border-radius:0 8px 8px 8px;padding:20px;min-height:400px;}
+.tab-content{background:var(--read);border:1px solid var(--border);border-top:none;border-radius:0 8px 8px 8px;padding:20px;min-height:400px;}
 .folder-banner{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:12px;margin-bottom:16px;}
 .folder-banner.ok{border-color:var(--ok);}
 .folder-path{font-size:12px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
@@ -63,7 +38,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .month-btn:hover:not(.active){border-color:var(--accent);color:var(--accent);}
 .dash-table-wrap{overflow-x:auto;}
 .dash-table{width:100%;border-collapse:collapse;font-size:12px;}
-.dash-table th{background:var(--surface2);color:var(--text2);padding:8px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;}
+.dash-table th{background:var(--frame);color:var(--text);font-weight:700;padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
 .dash-table td{padding:7px 10px;border-bottom:1px solid rgba(46,51,80,.4);vertical-align:middle;}
 .dash-table tr:hover td{background:var(--surface3);}
 .dash-table .num{text-align:right;font-variant-numeric:tabular-nums;}
@@ -101,7 +76,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .drop-text{color:var(--text2);font-size:12px;}.drop-text b{color:var(--accent);}
 .file-loaded{border-color:var(--ok);background:rgba(34,197,94,.05);}
 .btn{padding:8px 18px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px;}
-.btn-primary{background:var(--accent);color:#fff;}.btn-primary:hover{filter:brightness(1.12);}
+.btn-primary{background:var(--accent-btn);color:#fff;}.btn-primary:hover{filter:brightness(1.08);}
 .btn-primary:disabled{background:var(--border);color:var(--text3);cursor:not-allowed;}
 .btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border);}.btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
 .btn-precision{background:var(--surface2);color:var(--accent);border:1px solid var(--accent);}.btn-precision:hover{background:var(--surface3);}
@@ -118,7 +93,7 @@ input:focus,select:focus{outline:none;border-color:var(--accent);}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 .summary-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
-.sc{flex:1;min-width:120px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+.sc{flex:1;min-width:120px;background:var(--read);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
 .sc .sl{color:var(--text2);font-size:11px;margin-bottom:3px;}.sc .sv{font-size:16px;font-weight:700;}
 .match-banner{border-radius:10px;padding:16px 20px;display:flex;align-items:center;gap:14px;font-size:14px;font-weight:600;}
 .match-banner.ok{background:rgba(34,197,94,.12);border:1px solid var(--ok);color:var(--ok);}
@@ -126,7 +101,7 @@ input:focus,select:focus{outline:none;border-color:var(--accent);}
 .match-banner .detail{color:var(--text2);font-size:12px;font-weight:400;margin-top:2px;}
 .tbl-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:12px;}
-th{background:var(--surface2);color:var(--text2);padding:7px 10px;text-align:left;font-weight:600;border-bottom:1px solid var(--border);white-space:nowrap;}
+th{background:var(--frame);color:var(--text);font-weight:700;padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
 td{padding:7px 10px;border-bottom:1px solid rgba(46,51,80,.5);vertical-align:middle;}
 tr:hover td{background:var(--surface3);}
 .tag{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:600;}
@@ -144,33 +119,17 @@ tr:hover td{background:var(--surface3);}
 </style>
 </head>
 <body>
+<div id="app" style="display:none">
+<!-- ln-header は LEENAI が挿入 -->
 
-<!-- ══ ログインゲート (注意事項 v1.8 §16 / D-03 と統一) ══ -->
-<div id="loginGate" style="display:flex;position:fixed;inset:0;background:var(--bg);z-index:9999;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
-  <div style="font-size:40px;font-weight:800;letter-spacing:3px;color:var(--text);">LEEN<span style="color:var(--accent)">AI</span></div>
-  <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 10px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div style="font-size:13px;color:var(--text2);font-weight:500;">請求書確認ツール v6.6</div>
-  <div style="width:48px;height:1px;background:var(--border);margin:12px 0;"></div>
-  <div style="font-size:12px;color:var(--text3);text-align:center;line-height:1.8;">このツールを使用するには<br>COMPASSアカウントでのログインが必要です</div>
-  <button onclick="startD365Login()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;padding:11px 32px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Segoe UI',sans-serif;display:inline-flex;align-items:center;gap:8px;">🔑 COMPASSログイン</button>
-  <div id="gateStatus" style="font-size:11px;color:var(--text2);height:18px;"></div>
+<!-- API KEY バー (ヘッダー下サブバー) -->
+<div style="background:var(--surface2);border-bottom:1px solid var(--border);padding:4px 20px;display:flex;align-items:center;gap:8px;">
+  <span style="color:var(--text2);font-size:11px;">API KEY</span>
+  <div class="api-dot" id="apiDot"></div>
+  <input type="password" id="apiKeyInput" placeholder="sk-ant-..." maxlength="200"
+    style="background:var(--surface3);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:6px;width:220px;font-size:12px;">
+  <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="saveApiKey()">保存</button>
 </div>
-
-<header>
-  <div class="logo">LEEN<span>AI</span></div>
-  <div style="font-size:10px;font-weight:700;background:var(--surface2);border:1px solid var(--border);color:var(--accent);padding:2px 8px;border-radius:4px;letter-spacing:.5px;">SYS-E-01</div>
-  <div class="version">請求書確認ツール v6.6 (2026-08-10)</div>
-  <div class="api-mini">
-    <span style="color:var(--text2);font-size:11px;">API KEY</span>
-    <div class="api-dot" id="apiDot"></div>
-    <input type="password" id="apiKeyInput" placeholder="sk-ant-..." maxlength="200">
-    <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;" onclick="saveApiKey()">保存</button>
-    <button id="themeToggleBtn" onclick="toggleTheme()"
-      style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;cursor:pointer;font-size:12px;color:var(--text);display:flex;align-items:center;gap:4px;transition:all .2s;white-space:nowrap;">
-      🌙 ダーク
-    </button>
-  </div>
-</header>
 
 <div class="tabs">
   <div class="tab active" id="tab-dash" onclick="switchTab('dash')">🏠 ダッシュボード</div>
@@ -468,45 +427,43 @@ const S = {
 const DB_NAME='leenai_invoice_v1', DB_STORE='settings';
 
 // ══════════════════════════════════════════
-// INIT
+// LEENAI_COMMON 初期化
 // ══════════════════════════════════════════
-window.onload = async () => {
-  // v5.3: 初期化の失敗でログイン処理まで巻き添えにしないよう個別にガードする
-  const safe = (label, fn) => { try{ fn(); }catch(e){ console.error('init失敗:', label, e); } };
-
-  // OAuthコールバックは何よりも先に処理する
-  // v5.7: Graph コールバック (state='graph_'prefix) と DV コールバックを分岐
-  if (location.search.includes('code=') || location.search.includes('error=')) {
-    const _cbState = new URLSearchParams(location.search).get('state') || '';
-    const gs0 = document.getElementById('gateStatus');
-    if (_cbState.startsWith('graph_')) {
-      if (gs0) gs0.textContent = 'SharePoint認証中...';
-      try{ await handleGraphCallback(); }catch(e){ console.error('Graph callback失敗', e); }
-    } else {
-      if (gs0) gs0.textContent = '認証中...';
-      try{ await handleD365Callback(); }catch(e){ console.error('OAuth callback失敗', e); }
-    }
+function startTool(){
+  // API key 復元
+  var k=localStorage.getItem('leenai_apikey_v1')||'';
+  S.apiKey=k;
+  var apiInput=document.getElementById('apiKeyInput');
+  if(apiInput) apiInput.value=k;
+  updateApiDot();
+  // 照合タブ 業者セレクト
+  var sel=document.getElementById('packerSel');
+  if(sel){
+    Object.entries(VENDOR_MASTER).forEach(function([code,v]){
+      var o=document.createElement('option'); o.value=code;
+      o.textContent=v.ja+' ['+v.type+'型] — '+code; sel.appendChild(o);
+    });
   }
-
-  graphLoadToken(); // v5.7: 既存 Graph トークン復元
-  safe('initCdPackerSelect', initCdPackerSelect); // v3.8
-  safe('initCdPaymSelect', initCdPaymSelect); // v5.0
-  // テーマ復元
-  updateThemeBtn(document.documentElement.getAttribute('data-theme') || 'dark');
-  const k = localStorage.getItem('leenai_apikey_v1')||'';
-  S.apiKey=k; document.getElementById('apiKeyInput').value=k; updateApiDot();
-  // 照合タブの業者セレクト初期化
-  const sel=document.getElementById('packerSel');
-  Object.entries(VENDOR_MASTER).forEach(([code,v])=>{
-    const o=document.createElement('option'); o.value=code;
-    o.textContent=`${v.ja} [${v.type}型] — ${code}`; sel.appendChild(o);
-  });
-  await tryRestoreFolder();
-  // v5.8 fix: 既存 Graph トークンあれば SP ドロップダウン初期化
-  if(graphLoadToken()){
-    initSPFolderDropdown().catch(e=>console.warn('SP初期化失敗:',e));
+  try{initCdPackerSelect();}catch(e){console.error('initCdPackerSelect失敗',e);}
+  try{initCdPaymSelect();}catch(e){console.error('initCdPaymSelect失敗',e);}
+  tryRestoreFolder().catch(function(){});
+  // Graph 接続済みなら SP ドロップダウン初期化
+  if(LEENAI.auth.status.graph==='ok'){
+    initSPFolderDropdown().catch(function(e){console.warn('SP初期化失敗:',e);});
   }
-};
+  // COMPASS データ取得
+  fetchCompassFromD365().catch(function(e){console.warn('COMPASS取得失敗:',e);});
+}
+
+LEENAI.init({
+  sys: 'E-01',
+  name: '請求書確認ツール',
+  version: '7.0',
+  date: '2026-10-08',
+  desc: 'COMPASSデータと請求書PDFをAI照合します',
+  onReady: startTool,
+  redirectUri: 'https://mhlee205.github.io/INVOICE_CHECK/',
+});
 function saveApiKey(){
   const k=document.getElementById('apiKeyInput').value.trim();
   if(!k.startsWith('sk-ant-')){alert('APIキーは sk-ant- で始まります');return;}
@@ -616,90 +573,14 @@ function isValidYM(s){
 // ══════════════════════════════════════════
 
 // ══════════════════════════════════════════
-// v5.7: Graph API 認証 + SharePoint フォルダ
+// Graph API (LEENAI_COMMON 経由)
 // ══════════════════════════════════════════
-function graphTokenValid(){ return graphToken&&Date.now()<graphExpiry; }
-
-function graphSaveVerifier(v,st){
-  localStorage.setItem('graph_pkce',JSON.stringify({v,st,expires:Date.now()+10*60*1000}));
-}
-function graphLoadVerifier(){
-  try{const d=JSON.parse(localStorage.getItem('graph_pkce')||'null');
-    if(d&&Date.now()<d.expires) return d;}catch{}
-  return null;
-}
-function graphClearVerifier(){ localStorage.removeItem('graph_pkce'); }
-function graphSaveToken(t,expiresIn){
-  graphToken=t; graphExpiry=Date.now()+(expiresIn-60)*1000;
-  localStorage.setItem('graph_token',t);
-  localStorage.setItem('graph_expiry',graphExpiry.toString());
-}
-function graphLoadToken(){
-  const t=localStorage.getItem('graph_token');
-  const e=parseInt(localStorage.getItem('graph_expiry')||'0');
-  if(t&&Date.now()<e){graphToken=t;graphExpiry=e;return true;}
-  return false;
-}
-
-async function startGraphLogin(){
-  const arr=new Uint8Array(48); crypto.getRandomValues(arr);
-  const verifier=btoa(String.fromCharCode(...arr)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier));
-  const challenge=btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  const st=verifier.slice(0,16);
-  graphSaveVerifier(verifier,st);
-  const p=new URLSearchParams({
-    client_id:DV_CLIENT_ID, response_type:'code',
-    redirect_uri:DV_REDIRECT, scope:GRAPH_SCOPE,
-    state:'graph_'+st, code_challenge:challenge, code_challenge_method:'S256',
-  });
-  location.href=`https://login.microsoftonline.com/${DV_TENANT_ID}/oauth2/v2.0/authorize?${p}`;
-}
-
-async function handleGraphCallback(){
-  const params=new URLSearchParams(location.search);
-  const code=params.get('code'), oaErr=params.get('error');
-  history.replaceState({},'',DV_REDIRECT);
-  if(oaErr){openLoginGate(`SharePoint認証が拒否されました: ${params.get('error_description')||oaErr}`);return;}
-  if(!code) return;
-  const d=graphLoadVerifier();
-  if(!d){openLoginGate('SharePoint認証情報が失われました。もう一度ログインしてください。');return;}
-  graphClearVerifier();
-  const gs=document.getElementById('gateStatus');
-  if(gs) gs.textContent='SharePoint認証中...';
-  const res=await fetch(`https://login.microsoftonline.com/${DV_TENANT_ID}/oauth2/v2.0/token`,{
-    method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
-    body:new URLSearchParams({
-      client_id:DV_CLIENT_ID,grant_type:'authorization_code',
-      code,redirect_uri:DV_REDIRECT,code_verifier:d.v,scope:GRAPH_SCOPE,
-    })
-  });
-  const data=await res.json();
-  if(data.error){openLoginGate(`SharePoint認証エラー: ${data.error_description||data.error}`);return;}
-  graphSaveToken(data.access_token,data.expires_in);
-  // v5.7 fix: Graph リダイレクト前に退避した DV refresh_token を復元してトークン再発行
-  const savedDvRefresh=localStorage.getItem('dv_refresh_temp');
-  if(savedDvRefresh){
-    dvRefreshToken=savedDvRefresh;
-    localStorage.removeItem('dv_refresh_temp');
-    const dvOk=await dvRefreshAccessToken(); // DV アクセストークン再発行
-    if(!dvOk){
-      openLoginGate('COMPASS認証の復元に失敗しました。もう一度ログインしてください。');
-      return;
-    }
-  }
-  closeLoginGate();
-  const dashInfo=document.getElementById('dashCompassInfo');
-  if(dashInfo) dashInfo.innerHTML='<span class="spinner"></span> データ取得中...';
-  try{ await fetchCompassFromD365(); }catch(e){ console.warn('COMPASS取得失敗:',e); }
-  try{ await initSPFolderDropdown(); }catch(e){ console.warn('SPフォルダ初期化失敗:',e); }
-}
-
 async function graphGet(path){
-  if(!graphTokenValid()) throw new Error('SharePoint未ログイン — 再ログインしてください');
-  const res=await fetch(`https://graph.microsoft.com/v1.0${path}`,
-    {headers:{'Authorization':`Bearer ${graphToken}`,'Accept':'application/json'}});
-  if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(`Graph ${res.status}: ${e?.error?.message||res.statusText}`);}
+  var grTok=await LEENAI.auth.token('graph');
+  if(!grTok) throw new Error('SharePoint未接続 — Graphトークンがありません');
+  var res=await fetch('https://graph.microsoft.com/v1.0'+path,
+    {headers:{Authorization:'Bearer '+grTok,Accept:'application/json'}});
+  if(!res.ok){var e=await res.json().catch(function(){return {};});throw new Error('Graph '+res.status+': '+(e&&e.error&&e.error.message||res.statusText));}
   return res.json();
 }
 
@@ -714,9 +595,10 @@ async function loadSPFiles(folderId){
   return (data.value||[]).filter(f=>f.name.toLowerCase().endsWith('.pdf'));
 }
 async function downloadSPFileB64(fileId){
-  if(!graphTokenValid()) throw new Error('SharePoint未ログイン');
+  var grTok=await LEENAI.auth.token('graph');
+  if(!grTok) throw new Error('SharePoint未接続');
   const res=await fetch(`https://graph.microsoft.com/v1.0/drives/${SP_DRIVE_ID}/items/${fileId}/content`,
-    {headers:{'Authorization':`Bearer ${graphToken}`}});
+    {headers:{'Authorization':'Bearer '+grTok}});
   if(!res.ok) throw new Error(`SPダウンロード失敗 ${res.status}`);
   const buf=await res.arrayBuffer(); const bytes=new Uint8Array(buf);
   let bin=''; for(const b of bytes) bin+=String.fromCharCode(b);
@@ -729,7 +611,7 @@ async function initSPFolderDropdown(){
   const btn=document.getElementById('sp-connect-btn');
   if(!bar||!sel) return;
   bar.style.display='flex';
-  if(!graphTokenValid()&&!graphLoadToken()){
+  if(LEENAI.auth.status.graph!=='ok'){
     sel.innerHTML='<option value="">— SP未接続 —</option>';
     if(btn){btn.style.display='';btn.textContent='🔗 SP接続';}
     return;
@@ -753,11 +635,11 @@ async function initSPFolderDropdown(){
 }
 
 async function connectSP(){
-  if(graphTokenValid()||graphLoadToken()){
-    await initSPFolderDropdown(); return;
+  if(LEENAI.auth.status.graph==='ok'){
+    await initSPFolderDropdown();
+  } else {
+    LEENAI.toast('SharePoint接続不可 — 再ログインしてください','warn');
   }
-  if(dvRefreshToken) localStorage.setItem('dv_refresh_temp',dvRefreshToken);
-  await startGraphLogin();
 }
 
 async function onSPFolderChange(){
@@ -2666,267 +2548,25 @@ function resetMatch(){
 // テーマ切替 (DARK → LIGHT → LEENAI → FOCUS 4段階循環 / 注意事項 v1.8 §13)
 // ══════════════════════════════════════════
 // ログインゲートを閉じる (COMPASS認証完了時のみ — スキップ不可)
-function closeLoginGate() {
-  const gate = document.getElementById('loginGate');
-  if (gate) gate.style.display = 'none';
-}
-
-// v4.1: セッション切れ時にログイン画面へ戻す (ページ再読込は不要)
-function openLoginGate(msg) {
-  const gate = document.getElementById('loginGate');
-  if (gate) gate.style.display = 'flex';
-  const gs = document.getElementById('gateStatus');
-  if (gs && msg) gs.innerHTML = `<span style="color:var(--warn)">${msg}</span>`;
-}
-
-function toggleTheme() {
-  const html = document.documentElement;
-  const current = html.getAttribute('data-theme') || 'dark';
-  const order = ['dark', 'light', 'leenai', 'focus'];
-  const next = order[(order.indexOf(current) + 1) % order.length];
-  html.setAttribute('data-theme', next);
-  localStorage.setItem('leenai_theme', next);
-  updateThemeBtn(next);
-}
-function updateThemeBtn(theme) {
-  const btn = document.getElementById('themeToggleBtn');
-  if (!btn) return;
-  const labels = {
-    dark:   '🌙 ダーク',
-    light:  '☀️ ライト',
-    leenai: '🌿 LEENAI',
-    focus:  '🎯 FOCUS'
-  };
-  btn.textContent = labels[theme] || '🌙 ダーク';
-}
-(function() {
-  const saved = localStorage.getItem('leenai_theme') || 'dark';
-  document.documentElement.setAttribute('data-theme', saved);
-  document.addEventListener('DOMContentLoaded', () => updateThemeBtn(saved));
-})();
-
 // ══════════════════════════════════════════
-// D365 DATAVERSE 연동 (PKCE OAuth — SYS-E-01)
+// D365 DATAVERSE アクセス (LEENAI_COMMON 経由)
 // ══════════════════════════════════════════
-const DV_CLIENT_ID   = 'f071a165-5e9b-44bf-b6a1-baba654524db';
-const DV_TENANT_ID   = 'a56988ff-c2b8-4df8-9727-889ad4205198';
-const DV_SCOPE       = 'https://orgde512c6f.crm7.dynamics.com/user_impersonation';
-
-// v5.7: Graph API (SharePoint)
-const GRAPH_SCOPE   = 'https://graph.microsoft.com/Files.Read.All offline_access';
-const SP_DRIVE_ID   = 'b!ZK58_9YllU-vETQD3Xz0TbOInXbVCXJHnQ2280KJBArFLeM_18EgRbSeoO-TW__U';
-const SP_INV_FOLDER = '古紙/-. AI 活用/E-01-請求書'; // v5.8 fix: raw (/ を%2Fにしない)
-let graphToken=null, graphExpiry=0;
 const DV_API         = 'https://orgde512c6f.crm7.dynamics.com/api/data/v9.2';
-// ⚠️ REDIRECT_URI는 하드코딩 고정 (동적 생성 절대 금지)
-const DV_REDIRECT    = 'https://mhlee205.github.io/INVOICE_CHECK/';
+const SP_DRIVE_ID   = 'b!ZK58_9YllU-vETQD3Xz0TbOInXbVCXJHnQ2280KJBArFLeM_18EgRbSeoO-TW__U';
+const SP_INV_FOLDER = '古紙/-. AI 活用/E-01-請求書';
 
-// v5.2: PKCE検証値の保存 (localStorage + 10分失効。使用直後に削除)
-const DV_CV_KEY = 'leenai_dv_cv_v1';
-function dvSaveVerifier(v){
-  try{ localStorage.setItem(DV_CV_KEY, JSON.stringify({v, t:Date.now()})); }
-  catch{ sessionStorage.setItem('dv_cv', v); }   // 保存できない環境向けの保険
-}
-function dvLoadVerifier(){
-  try{
-    const raw=localStorage.getItem(DV_CV_KEY);
-    if(raw){
-      const o=JSON.parse(raw);
-      if(o && o.v && (Date.now()-o.t) < 10*60*1000) return o.v;
-    }
-  }catch{}
-  return sessionStorage.getItem('dv_cv') || null;   // 旧方式の残りも拾う
-}
-function dvClearVerifier(){
-  try{ localStorage.removeItem(DV_CV_KEY); }catch{}
-  sessionStorage.removeItem('dv_cv');
-}
-
-let dvAccessToken = null;
-// v4.1: トークンは60〜90分で失効する。offline_access で受け取る refresh_token を
-//       保持し、失効前/401時に自動で再発行する (再ログイン不要にする)
-let dvRefreshToken = null;
-let dvTokenExpiry  = 0;   // epoch ms — この時刻を過ぎたら再発行
-
-function dvSetToken(data){
-  dvAccessToken = data.access_token;
-  if(data.refresh_token) dvRefreshToken = data.refresh_token;
-  // expires_in(秒) から5分の余裕を引く
-  dvTokenExpiry = Date.now() + (((data.expires_in||3600) - 300) * 1000);
-}
-
-async function dvRefreshAccessToken(){
-  if(!dvRefreshToken) return false;
-  try{
-    const body = new URLSearchParams({
-      client_id:     DV_CLIENT_ID,
-      grant_type:    'refresh_token',
-      refresh_token: dvRefreshToken,
-      scope:         DV_SCOPE + ' offline_access',
-    });
-    const res = await fetch(
-      `https://login.microsoftonline.com/${DV_TENANT_ID}/oauth2/v2.0/token`,
-      { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body }
-    );
-    if(!res.ok){ console.warn('token refresh失敗', res.status); return false; }
-    dvSetToken(await res.json());
-    return true;
-  }catch(e){ console.warn('token refresh例外', e); return false; }
-}
-
-// 期限切れ間近なら先に再発行しておく
-async function dvEnsureToken(){
-  if(!dvAccessToken) return false;
-  if(Date.now() < dvTokenExpiry) return true;
-  return await dvRefreshAccessToken();
-}
-
-function dvHeaders(){
-  return {
-    'Authorization': `Bearer ${dvAccessToken}`,
-    'OData-MaxVersion': '4.0',
-    'OData-Version': '4.0',
-    'Accept': 'application/json',
-  };
-}
-
-// 401 が返ったら1度だけ再発行して再試行する共通fetch
 async function dvFetch(url){
-  await dvEnsureToken();
-  let res = await fetch(url, { headers: dvHeaders() });
-  if(res.status===401 && await dvRefreshAccessToken()){
-    res = await fetch(url, { headers: dvHeaders() });
-  }
+  var token = await LEENAI.auth.token('dataverse');
+  var res = await fetch(url, {headers:{
+    'Authorization':'Bearer '+token,
+    'OData-MaxVersion':'4.0','OData-Version':'4.0','Accept':'application/json'
+  }});
   if(res.status===401){
-    dvAccessToken=null; dvRefreshToken=null; dvTokenExpiry=0;
-    openLoginGate('セッションが切れました。再ログインしてください。');
-    const e=new Error('セッションが切れました。再ログインしてください。');
-    e.sessionExpired=true;
-    throw e;
+    LEENAI.toast('セッションが切れました。再ログインしてください。','warn');
+    var e=new Error('セッションが切れました。再ログインしてください。');
+    e.sessionExpired=true; throw e;
   }
   return res;
-}
-
-// PKCE ヘルパー
-async function generateCodeVerifier() {
-  const arr = new Uint8Array(32);
-  crypto.getRandomValues(arr);
-  return btoa(String.fromCharCode(...arr)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-}
-async function generateCodeChallenge(verifier) {
-  const enc = new TextEncoder().encode(verifier);
-  const hash = await crypto.subtle.digest('SHA-256', enc);
-  return btoa(String.fromCharCode(...new Uint8Array(hash))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
-}
-
-// D365 ログイン開始
-async function startD365Login() {
-  const gs = document.getElementById('gateStatus');
-  if (gs) gs.textContent = 'COMPASSへ接続中...';
-  const verifier  = await generateCodeVerifier();
-  const challenge = await generateCodeChallenge(verifier);
-  // v5.2: sessionStorage はタブ単位のため、別タブ復帰やタブ復元で検証値が消え
-  //   「?code= が付いたまま何も起きない」状態になっていた → localStorage に変更。
-  //   使い捨て・使用直後に削除・10分で失効。
-  dvSaveVerifier(verifier);
-
-  const params = new URLSearchParams({
-    client_id:             DV_CLIENT_ID,
-    response_type:         'code',
-    redirect_uri:          DV_REDIRECT,
-    scope:                 DV_SCOPE + ' offline_access',
-    code_challenge:        challenge,
-    code_challenge_method: 'S256',
-    response_mode:         'query',
-  });
-  location.href = `https://login.microsoftonline.com/${DV_TENANT_ID}/oauth2/v2.0/authorize?${params}`;
-}
-
-// コールバック処理 (認証コード → アクセストークン)
-async function handleD365Callback() {
-  const params = new URLSearchParams(location.search);
-  const code    = params.get('code');
-
-  // v5.2: Entra側がエラーを返した場合も黙って終わらせない
-  const oaErr = params.get('error');
-  if (oaErr) {
-    history.replaceState({}, '', DV_REDIRECT);
-    openLoginGate(`❌ ログインが拒否されました: ${params.get('error_description')||oaErr}`);
-    return;
-  }
-  if (!code) return;
-
-  const verifier = dvLoadVerifier();
-  if (!verifier) {
-    // v5.2: 旧実装はここで無言 return し、URLに ?code= が残ったまま
-    //   ログイン画面から進めなくなっていた。原因と対処を必ず表示する。
-    history.replaceState({}, '', DV_REDIRECT);
-    openLoginGate('ログイン情報の確認に失敗しました（別タブ/再読込で認証情報が失われた可能性）。もう一度ログインしてください。');
-    return;
-  }
-
-  // URLをクリア
-  history.replaceState({}, '', DV_REDIRECT);
-  dvClearVerifier();
-
-  const dashInfo = document.getElementById('dashCompassInfo');
-  const gs = document.getElementById('gateStatus');
-  if (gs) gs.textContent = 'D365認証中...';
-  if (dashInfo) dashInfo.innerHTML = '<span class="spinner"></span> D365認証中...';
-
-  try {
-    const body = new URLSearchParams({
-      client_id:     DV_CLIENT_ID,
-      grant_type:    'authorization_code',
-      code,
-      redirect_uri:  DV_REDIRECT,
-      code_verifier: verifier,
-      scope:         DV_SCOPE + ' offline_access',
-    });
-    const res = await fetch(
-      `https://login.microsoftonline.com/${DV_TENANT_ID}/oauth2/v2.0/token`,
-      { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body }
-    );
-    if (!res.ok) {
-      // v5.4: Entraのエラー本文をそのまま出すと読めないため、原因別の案内に変換
-      const raw = await res.text();
-      console.error('token endpoint error:', raw);   // 詳細はコンソールに残す
-      let msg = 'ログインに失敗しました。';
-      try{
-        const j = JSON.parse(raw);
-        const code = (j.error_codes && j.error_codes[0]) || '';
-        if (j.error === 'invalid_grant' && String(code) === '70008') {
-          msg = 'ログインの有効期限が切れました（認証コードは数分で失効します）。もう一度ログインしてください。';
-        } else if (j.error === 'invalid_grant') {
-          msg = 'ログイン情報が無効です。もう一度ログインしてください。';
-        } else if (j.error === 'invalid_client' || j.error === 'unauthorized_client') {
-          msg = 'アプリ登録の設定に問題があります（Azure側の確認が必要です）。';
-        } else if (j.error_description) {
-          msg = String(j.error_description).split('Trace ID')[0].trim();
-        }
-      }catch{}
-      const err = new Error(msg); err.friendly = true; throw err;
-    }
-    dvSetToken(await res.json());   // v4.1: refresh_token / expires_in も保持
-    // v5.7: DV完了後、Graph トークンがなければ Graph ログインへ自動遷移
-    if(!graphTokenValid()&&!graphLoadToken()){
-      // Graph リダイレクト前に DV refresh_token を localStorage に退避
-      if(dvRefreshToken) localStorage.setItem('dv_refresh_temp', dvRefreshToken);
-      if(gs) gs.textContent='SharePoint認証へ移動中...';
-      await startGraphLogin(); // リダイレクト発生 → ここで停止
-      return;
-    }
-    closeLoginGate();   // Graph も済み → 通常起動
-    if (dashInfo) dashInfo.innerHTML = '<span style="color:var(--ok)">✅ D365認証完了 — データ取得中...</span>';
-    await fetchCompassFromD365();
-    try{ await initSPFolderDropdown(); }catch(e){ console.warn('SP初期化失敗:',e); } // v5.8
-  } catch(e) {
-    // 認証失敗時はゲートを開けたまま、ゲート上にエラー表示 (ログイン必須)
-    const shown = e.friendly ? e.message : ('認証エラー: ' + String(e.message||'').slice(0,120));
-    if (gs) gs.innerHTML = `<span style="color:var(--danger)">❌ ${shown}</span>`
-      + `<br><span style="color:var(--text2);font-size:11px;">上の「🔑 COMPASSログイン」をもう一度クリックしてください</span>`;
-    if (dashInfo) dashInfo.innerHTML = `<span style="color:var(--danger)">❌ ${shown}</span>`;
-  }
 }
 
 // Dataverse OData ヘルパー
@@ -3113,10 +2753,8 @@ async function fetchCompassFromD365() {
   }
 }
 </script>
-
-<footer style="text-align:center;padding:18px;color:var(--text3);font-size:11px;margin-top:20px;">
-  ✦ Powered by LEENAI Automation System
-</footer>
+<!-- ln-footer は LEENAI が挿入 -->
+</div><!-- /app -->
 
 </body>
 </html>
